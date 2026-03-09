@@ -579,6 +579,9 @@ export default function App() {
           <div style={{ fontSize: 14, color: TEXT2, lineHeight: 1.65, maxWidth: 500, margin: "14px auto 0" }}>
             This tool estimates the probability of existential-level harm to humanity from artificial intelligence by decomposing the question into four conditional steps that scorers evaluate in sequence.
           </div>
+          <div style={{ fontSize: 12, color: MUTED, lineHeight: 1.55, maxWidth: 480, margin: "10px auto 0", fontStyle: "italic" }}>
+            This calculator represents one general decomposition of AI catastrophic risk, intended to be broad enough to cover many worldviews, but not exhaustive of all possible framings.
+          </div>
         </div>
 
         {/* ─── ASSUMPTIONS ─── */}
