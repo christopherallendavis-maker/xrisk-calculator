@@ -423,8 +423,77 @@ function CruxViewPanel({ items }) {
   );
 }
 
+function BranchContent({ branch, score, expanded, direct, setDirect, branchMode, setBranchMode, t2, setT2Score, t2Mode, toggleT2Mode, t3, setT3Score, qEdits, editQ }) {
+  return (
+    <div>
+      {branch.cond && (
+        <div style={{ fontSize: 13, fontWeight: 500, color: branch.color, marginBottom: 14 }}>
+          Assuming: {branch.cond}
+        </div>
+      )}
+
+      <EditableText
+        text={qEdits[branch.key] || branch.q}
+        onEdit={v => editQ(branch.key, v)}
+        style={{ fontSize: 17, fontWeight: 500, color: TEXT, lineHeight: 1.7, marginBottom: 24 }}
+      />
+
+      {branch.guidance && (
+        <div style={{
+          fontSize: 13, color: TEXT2, lineHeight: 1.65, marginBottom: 20,
+          padding: "12px 14px", background: ACCENT_LIGHT, borderLeft: `3px solid ${branch.color}`,
+          borderRadius: "0 4px 4px 0"
+        }}>
+          <strong style={{ color: TEXT, fontWeight: 600 }}>Scoring guidance:</strong> {branch.guidance}
+        </div>
+      )}
+
+      {!expanded && (
+        <Slider value={direct[branch.key]} onChange={v => setDirect(p => ({...p, [branch.key]: v}))} />
+      )}
+      {expanded && (
+        <Slider value={score} onChange={() => {}} disabled />
+      )}
+
+      <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span onClick={() => setBranchMode(p => ({...p, [branch.key]: expanded ? "direct" : "expand"}))} style={{
+          fontSize: 13, fontWeight: 600, color: ACCENT, cursor: "pointer",
+          borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1
+        }}>{expanded ? "Score directly instead" : "Break it down"}</span>
+        {expanded && (
+          <span style={{ fontSize: 12, color: MUTED, letterSpacing: 0.5 }}>
+            {branch.gate === "AND" ? "All required (AND)" : "Any one sufficient (OR)"}
+          </span>
+        )}
+      </div>
+
+      {expanded && (
+        <div style={{ marginTop: 24 }}>
+          <div style={{ height: 1, background: RULE, marginBottom: 20 }} />
+          {branch.tier2.map(sub => (
+            <Tier2Sub
+              key={sub.id}
+              sub={sub}
+              directScore={t2[sub.id]}
+              onDirectChange={v => setT2Score(sub.id, v)}
+              tier3Scores={t3[sub.id] || []}
+              onTier3Change={(i, v) => setT3Score(sub.id, i, v)}
+              mode={t2Mode[sub.id]}
+              onToggleMode={() => toggleT2Mode(sub.id)}
+              qEdits={qEdits}
+              onEditQ={editQ}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [step, setStep] = useState(0);
+  const [layout, setLayout] = useState("wizard");
+  const [accordionOpen, setAccordionOpen] = useState({ intelligence: true, alignment: false, influence: false, environment: false });
   const [scenario, setScenario] = useState("blended");
   const [timeHorizon, setTimeHorizon] = useState(30);
   const [showSetup, setShowSetup] = useState(true);
@@ -570,33 +639,21 @@ export default function App() {
 
         {/* ─── CALCULATOR ─── */}
         <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 2, color: MUTED, marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${RULE}` }}>Calculator</div>
-        <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.65, marginBottom: 24 }}>
-          This uses a conditional probability chain. Score each step assuming all prior steps are already true. When you score Alignment, assume a capable AI exists. When you score Influence, assume a capable and misaligned AI exists. The product of the four conditionals gives your P(existential catastrophe).
-        </div>
-
-        {/* Progress bar */}
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ display: "flex", gap: 3 }}>
-            {BRANCHES.map((b, i) => (
-              <div key={i} style={{ flex: 1, height: 3, borderRadius: 1.5, background: i <= step ? b.color : TRACK_OFF, transition: "background 0.3s" }} />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+          <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.65, flex: 1, marginRight: 16 }}>
+            Conditional probability chain. Score each step assuming all prior steps are true.
+          </div>
+          <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+            {["wizard", "accordion"].map(l => (
+              <button key={l} onClick={() => setLayout(l)} style={{
+                padding: "6px 14px", borderRadius: 4, fontSize: 12, fontWeight: 600,
+                fontFamily: "inherit", cursor: "pointer", textTransform: "capitalize",
+                background: layout === l ? ACCENT : "transparent",
+                border: `1.5px solid ${layout === l ? ACCENT : BORDER}`,
+                color: layout === l ? "#FFFFFF" : TEXT2, transition: "all 0.15s"
+              }}>{l}</button>
             ))}
           </div>
-        </div>
-
-        {/* Step navigation */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 24 }}>
-          <div style={{ display: "flex", gap: 20 }}>
-            {BRANCHES.map((b, i) => (
-              <span key={i} onClick={() => setStep(i)} style={{
-                fontSize: 13, fontWeight: 600, cursor: "pointer",
-                color: i === step ? b.color : MUTED,
-                paddingBottom: 4,
-                borderBottom: i === step ? `2px solid ${b.color}` : "2px solid transparent",
-                transition: "all 0.2s"
-              }}>{b.label}</span>
-            ))}
-          </div>
-          <span style={{ fontSize: 12, color: MUTED }}>{step + 1} / 4</span>
         </div>
 
         {/* Running result */}
@@ -616,87 +673,105 @@ export default function App() {
           </div>
         </div>
 
-        {/* Current step content */}
-        <div style={{ minHeight: 280 }}>
-          {branch.cond && (
-            <div style={{ fontSize: 13, fontWeight: 500, color: branch.color, marginBottom: 14 }}>
-              Assuming: {branch.cond}
+        {/* ─── WIZARD LAYOUT ─── */}
+        {layout === "wizard" && (
+          <>
+            {/* Progress bar */}
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ display: "flex", gap: 3 }}>
+                {BRANCHES.map((b, i) => (
+                  <div key={i} style={{ flex: 1, height: 3, borderRadius: 1.5, background: i <= step ? b.color : TRACK_OFF, transition: "background 0.3s" }} />
+                ))}
+              </div>
             </div>
-          )}
 
-          <EditableText
-            text={qEdits[branch.key] || branch.q}
-            onEdit={v => editQ(branch.key, v)}
-            style={{ fontSize: 17, fontWeight: 500, color: TEXT, lineHeight: 1.7, marginBottom: 24 }}
-          />
-
-          {branch.guidance && (
-            <div style={{
-              fontSize: 13, color: TEXT2, lineHeight: 1.65, marginBottom: 20,
-              padding: "12px 14px", background: ACCENT_LIGHT, borderLeft: `3px solid ${branch.color}`,
-              borderRadius: "0 4px 4px 0"
-            }}>
-              <strong style={{ color: TEXT, fontWeight: 600 }}>Scoring guidance:</strong> {branch.guidance}
+            {/* Step tabs */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 24 }}>
+              <div style={{ display: "flex", gap: 20 }}>
+                {BRANCHES.map((b, i) => (
+                  <span key={i} onClick={() => setStep(i)} style={{
+                    fontSize: 13, fontWeight: 600, cursor: "pointer",
+                    color: i === step ? b.color : MUTED,
+                    paddingBottom: 4,
+                    borderBottom: i === step ? `2px solid ${b.color}` : "2px solid transparent",
+                    transition: "all 0.2s"
+                  }}>{b.label}</span>
+                ))}
+              </div>
+              <span style={{ fontSize: 12, color: MUTED }}>{step + 1} / 4</span>
             </div>
-          )}
 
-          {!expanded && (
-            <Slider value={direct[branch.key]} onChange={v => setDirect(p => ({...p, [branch.key]: v}))} />
-          )}
-          {expanded && (
-            <Slider value={score} onChange={() => {}} disabled />
-          )}
+            <div style={{ minHeight: 280 }}>
+              <BranchContent
+                branch={branch} score={score} expanded={expanded}
+                direct={direct} setDirect={setDirect} branchMode={branchMode} setBranchMode={setBranchMode}
+                t2={t2} setT2Score={setT2Score} t2Mode={t2Mode} toggleT2Mode={toggleT2Mode}
+                t3={t3} setT3Score={setT3Score} qEdits={qEdits} editQ={editQ}
+              />
+            </div>
 
-          <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span onClick={() => setBranchMode(p => ({...p, [branch.key]: expanded ? "direct" : "expand"}))} style={{
-              fontSize: 13, fontWeight: 600, color: ACCENT, cursor: "pointer",
-              borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1
-            }}>{expanded ? "Score directly instead" : "Break it down"}</span>
-            {expanded && (
-              <span style={{ fontSize: 12, color: MUTED, letterSpacing: 0.5 }}>
-                {branch.gate === "AND" ? "All required (AND)" : "Any one sufficient (OR)"}
-              </span>
-            )}
+            {/* Navigation */}
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 32 }}>
+              <button onClick={() => step > 0 && setStep(step - 1)} style={{
+                padding: "10px 24px", borderRadius: 4, fontSize: 13, fontWeight: 600,
+                background: "transparent", border: `1.5px solid ${step === 0 ? TRACK_OFF : BORDER}`,
+                color: step === 0 ? MUTED : TEXT2, cursor: step === 0 ? "default" : "pointer",
+                fontFamily: "inherit"
+              }}>Back</button>
+              <button onClick={() => step < 3 && setStep(step + 1)} style={{
+                padding: "10px 24px", borderRadius: 4, fontSize: 13, fontWeight: 600,
+                background: step === 3 ? ACCENT : "transparent",
+                border: `1.5px solid ${step === 3 ? ACCENT : BORDER}`,
+                color: step === 3 ? "#FFFFFF" : TEXT,
+                cursor: step === 3 ? "default" : "pointer",
+                fontFamily: "inherit"
+              }}>{step === 3 ? "Scoring Complete" : "Next Step"}</button>
+            </div>
+          </>
+        )}
+
+        {/* ─── ACCORDION LAYOUT ─── */}
+        {layout === "accordion" && (
+          <div>
+            {BRANCHES.map((b, i) => {
+              const isOpen = accordionOpen[b.key];
+              const bScore = stepVals[i];
+              const bExpanded = branchMode[b.key] === "expand";
+              return (
+                <div key={b.key} style={{ marginBottom: 12 }}>
+                  <div
+                    onClick={() => setAccordionOpen(p => ({ ...p, [b.key]: !p[b.key] }))}
+                    style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      padding: "12px 14px", cursor: "pointer", borderRadius: isOpen ? "6px 6px 0 0" : 6,
+                      background: ACCENT_LIGHT, borderLeft: `3px solid ${b.color}`,
+                      transition: "border-radius 0.2s"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+                      <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: b.color }}>{b.n}</span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: TEXT }}>{b.label}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: b.color }}>{(bScore*100).toFixed(0)}%</span>
+                      <span style={{ fontSize: 14, color: MUTED, transform: isOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }}>▾</span>
+                    </div>
+                  </div>
+                  {isOpen && (
+                    <div style={{ padding: "16px 14px", border: `1px solid ${BORDER}`, borderTop: "none", borderRadius: "0 0 6px 6px" }}>
+                      <BranchContent
+                        branch={b} score={bScore} expanded={bExpanded}
+                        direct={direct} setDirect={setDirect} branchMode={branchMode} setBranchMode={setBranchMode}
+                        t2={t2} setT2Score={setT2Score} t2Mode={t2Mode} toggleT2Mode={toggleT2Mode}
+                        t3={t3} setT3Score={setT3Score} qEdits={qEdits} editQ={editQ}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-
-          {expanded && (
-            <div style={{ marginTop: 24 }}>
-              <div style={{ height: 1, background: RULE, marginBottom: 20 }} />
-              {branch.tier2.map(sub => (
-                <Tier2Sub
-                  key={sub.id}
-                  sub={sub}
-                  directScore={t2[sub.id]}
-                  onDirectChange={v => setT2Score(sub.id, v)}
-                  tier3Scores={t3[sub.id] || []}
-                  onTier3Change={(i, v) => setT3Score(sub.id, i, v)}
-                  mode={t2Mode[sub.id]}
-                  onToggleMode={() => toggleT2Mode(sub.id)}
-                  qEdits={qEdits}
-                  onEditQ={editQ}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Navigation */}
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 32 }}>
-          <button onClick={() => step > 0 && setStep(step - 1)} style={{
-            padding: "10px 24px", borderRadius: 4, fontSize: 13, fontWeight: 600,
-            background: "transparent", border: `1.5px solid ${step === 0 ? TRACK_OFF : BORDER}`,
-            color: step === 0 ? MUTED : TEXT2, cursor: step === 0 ? "default" : "pointer",
-            fontFamily: "inherit"
-          }}>Back</button>
-          <button onClick={() => step < 3 && setStep(step + 1)} style={{
-            padding: "10px 24px", borderRadius: 4, fontSize: 13, fontWeight: 600,
-            background: step === 3 ? ACCENT : "transparent",
-            border: `1.5px solid ${step === 3 ? ACCENT : BORDER}`,
-            color: step === 3 ? "#FFFFFF" : TEXT,
-            cursor: step === 3 ? "default" : "pointer",
-            fontFamily: "inherit"
-          }}>{step === 3 ? "Scoring Complete" : "Next Step"}</button>
-        </div>
+        )}
 
         {/* ─── ANALYSIS ─── */}
         <div style={{ marginTop: 32 }}>
