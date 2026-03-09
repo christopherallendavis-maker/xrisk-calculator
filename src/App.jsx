@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 
 // ═══ PALETTE ═══
 const BG = "#FEFDFB";
@@ -112,6 +112,114 @@ const BRANCHES = [
 function orCombine(p) { return 1 - p.reduce((a, v) => a * (1 - v), 1); }
 function andCombine(p) { return p.reduce((a, v) => a * v, 1); }
 function riskColor(v) { return v > .30 ? "#991B1B" : v > .15 ? "#92400E" : v > .05 ? "#78350F" : "#064E3B"; }
+
+// ═══ PURE ANALYSIS FUNCTIONS ═══
+
+function getSubScorePure(sub, t2, t2Mode, t3) {
+  if (t2Mode[sub.id] === "breakdown" && sub.tier3 && t3[sub.id]) return orCombine(t3[sub.id]);
+  return t2[sub.id];
+}
+
+function getBranchScorePure(branch, branchMode, direct, t2, t2Mode, t3) {
+  if (branchMode[branch.key] === "direct") return direct[branch.key];
+  const subScores = branch.tier2.map(sub => getSubScorePure(sub, t2, t2Mode, t3));
+  return branch.gate === "AND" ? andCombine(subScores) : orCombine(subScores);
+}
+
+function computePDoomPure(branchMode, direct, t2, t2Mode, t3) {
+  return BRANCHES.map(b => getBranchScorePure(b, branchMode, direct, t2, t2Mode, t3))
+    .reduce((a, v) => a * v, 1);
+}
+
+function enumerateActiveAssumptions(branchMode, t2Mode) {
+  const result = [];
+  for (const branch of BRANCHES) {
+    if (branchMode[branch.key] === "direct") {
+      result.push({ id: branch.key, type: "branch", label: branch.label, branchKey: branch.key, color: branch.color });
+    } else {
+      for (const sub of branch.tier2) {
+        if (t2Mode[sub.id] === "breakdown" && sub.tier3 && sub.tier3.length > 0) {
+          for (const t3Item of sub.tier3) {
+            result.push({ id: t3Item.id, type: "t3", parentId: sub.id, label: `${sub.label}: ${t3Item.label}`, branchKey: branch.key, color: branch.color });
+          }
+        } else {
+          result.push({ id: sub.id, type: "t2", parentId: branch.key, label: sub.label, branchKey: branch.key, color: branch.color });
+        }
+      }
+    }
+  }
+  return result;
+}
+
+function getAssumptionValue(assumption, direct, t2, t3) {
+  if (assumption.type === "branch") return direct[assumption.id];
+  if (assumption.type === "t2") return t2[assumption.id];
+  if (assumption.type === "t3") {
+    const parentT3 = t3[assumption.parentId];
+    const branch = BRANCHES.find(b => b.key === assumption.branchKey);
+    const sub = branch.tier2.find(s => s.id === assumption.parentId);
+    const idx = sub.tier3.findIndex(t => t.id === assumption.id);
+    return parentT3[idx];
+  }
+  return 0;
+}
+
+function perturbAndCompute(assumption, delta, branchMode, direct, t2, t2Mode, t3) {
+  const perturb = (d) => {
+    const dClone = { ...direct };
+    const t2Clone = { ...t2 };
+    const t3Clone = {};
+    for (const k of Object.keys(t3)) t3Clone[k] = [...t3[k]];
+
+    if (assumption.type === "branch") {
+      dClone[assumption.id] = Math.max(0, Math.min(1, direct[assumption.id] + d));
+    } else if (assumption.type === "t2") {
+      t2Clone[assumption.id] = Math.max(0, Math.min(1, t2[assumption.id] + d));
+    } else if (assumption.type === "t3") {
+      const branch = BRANCHES.find(b => b.key === assumption.branchKey);
+      const sub = branch.tier2.find(s => s.id === assumption.parentId);
+      const idx = sub.tier3.findIndex(t => t.id === assumption.id);
+      t3Clone[assumption.parentId][idx] = Math.max(0, Math.min(1, t3[assumption.parentId][idx] + d));
+    }
+    return computePDoomPure(branchMode, dClone, t2Clone, t2Mode, t3Clone);
+  };
+  return { upPDoom: perturb(delta), downPDoom: perturb(-delta) };
+}
+
+function computeSensitivityReport(branchMode, direct, t2, t2Mode, t3, delta = 0.05) {
+  const assumptions = enumerateActiveAssumptions(branchMode, t2Mode);
+  const basePDoom = computePDoomPure(branchMode, direct, t2, t2Mode, t3);
+  return assumptions.map(a => {
+    const currentValue = getAssumptionValue(a, direct, t2, t3);
+    const { upPDoom, downPDoom } = perturbAndCompute(a, delta, branchMode, direct, t2, t2Mode, t3);
+    const sensitivity = Math.abs(upPDoom - downPDoom);
+    return { ...a, currentValue, sensitivity, upPDoom, downPDoom, basePDoom };
+  }).sort((a, b) => b.sensitivity - a.sensitivity);
+}
+
+function summarizeDrivingAssumptions(report) {
+  return report.slice(0, 3).map(item => {
+    const dir = item.upPDoom > item.downPDoom ? "raises" : "lowers";
+    const delta = Math.abs(item.upPDoom - item.basePDoom) * 100;
+    return {
+      ...item,
+      direction: dir,
+      impactPp: delta,
+      summary: `Shifting ±5pp ${dir} P(doom) by ~${delta.toFixed(1)}pp`,
+    };
+  });
+}
+
+function computeCruxView(report) {
+  return report.map(item => {
+    const uncertaintyFactor = 1.0 - 2 * Math.abs(item.currentValue - 0.5);
+    const cruxScore = item.sensitivity * (0.6 + 0.4 * uncertaintyFactor);
+    const conviction = item.currentValue <= 0.2 || item.currentValue >= 0.8
+      ? "High conviction" : item.currentValue <= 0.35 || item.currentValue >= 0.65
+      ? "Moderate conviction" : "Low conviction";
+    return { ...item, cruxScore, uncertaintyFactor, conviction };
+  }).sort((a, b) => b.cruxScore - a.cruxScore);
+}
 
 // ═══ Editable text component ═══
 function EditableText({ text, onEdit, style }) {
@@ -230,6 +338,115 @@ function Tier2Sub({ sub, directScore, onDirectChange, tier3Scores, onTier3Change
   );
 }
 
+// ═══ ANALYSIS UI COMPONENTS ═══
+
+function CollapsiblePanel({ title, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div onClick={() => setOpen(!open)} style={{
+        cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center",
+        padding: "10px 0", borderBottom: open ? `1px solid ${RULE}` : "none"
+      }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: TEXT }}>{title}</span>
+        <span style={{ fontSize: 14, color: MUTED, transform: open ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }}>▾</span>
+      </div>
+      {open && <div style={{ paddingTop: 12 }}>{children}</div>}
+    </div>
+  );
+}
+
+function DrivingAssumptionsPanel({ items }) {
+  if (items.length === 0) return null;
+  return (
+    <CollapsiblePanel title="Driving Assumptions" defaultOpen={true}>
+      <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.6, marginBottom: 12 }}>
+        The assumptions that most affect your P(doom) estimate. These are where small changes in your credence produce the largest shifts in the final number.
+      </div>
+      {items.map((item, i) => (
+        <div key={item.id} style={{
+          display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 14,
+          padding: "10px 12px", background: ACCENT_LIGHT, borderRadius: 4,
+          borderLeft: `3px solid ${item.color}`
+        }}>
+          <span style={{ fontFamily: MONO, fontSize: 18, fontWeight: 700, color: item.color, minWidth: 20 }}>{i + 1}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: TEXT }}>{item.label}</span>
+              <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: TEXT }}>{(item.currentValue * 100).toFixed(0)}%</span>
+            </div>
+            <div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.5 }}>
+              Most influential. {item.summary}.
+            </div>
+          </div>
+        </div>
+      ))}
+    </CollapsiblePanel>
+  );
+}
+
+function SensitivityReportPanel({ items }) {
+  if (items.length === 0) return null;
+  const maxSens = Math.max(...items.map(i => i.sensitivity), 0.001);
+  return (
+    <CollapsiblePanel title="Sensitivity Report" defaultOpen={false}>
+      <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.6, marginBottom: 12 }}>
+        Each assumption perturbed ±5 percentage points. Bar width shows how much P(doom) changes.
+      </div>
+      {items.map(item => {
+        const barPct = (item.sensitivity / maxSens) * 100;
+        return (
+          <div key={item.id} style={{ marginBottom: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 3 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: TEXT, maxWidth: "60%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
+              <span style={{ fontSize: 11, color: MUTED, fontFamily: MONO }}>{(item.currentValue * 100).toFixed(0)}% · Δ{(item.sensitivity * 100).toFixed(2)}pp</span>
+            </div>
+            <div style={{ width: "100%", height: 6, background: TRACK_OFF, borderRadius: 3 }}>
+              <div style={{ width: `${barPct}%`, height: 6, background: item.color, borderRadius: 3, transition: "width 0.3s" }} />
+            </div>
+          </div>
+        );
+      })}
+    </CollapsiblePanel>
+  );
+}
+
+function CruxViewPanel({ items }) {
+  if (items.length === 0) return null;
+  const topCruxes = items.slice(0, 5);
+  return (
+    <CollapsiblePanel title="Crux View" defaultOpen={false}>
+      <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.6, marginBottom: 12 }}>
+        Assumptions most worth debating: high sensitivity combined with room for genuine disagreement. Assumptions you already hold with extreme confidence score lower.
+      </div>
+      {topCruxes.map(item => {
+        const isHighCrux = item.cruxScore > (topCruxes[0].cruxScore * 0.5);
+        return (
+          <div key={item.id} style={{
+            marginBottom: 10, padding: "10px 12px", borderRadius: 4,
+            background: isHighCrux ? `${item.color}08` : ACCENT_LIGHT,
+            border: `1px solid ${isHighCrux ? `${item.color}30` : BORDER}`
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: TEXT }}>{item.label}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: item.color, fontFamily: MONO }}>{(item.currentValue * 100).toFixed(0)}%</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span style={{ fontSize: 12, color: TEXT2 }}>{item.conviction} · Sensitivity Δ{(item.sensitivity * 100).toFixed(2)}pp</span>
+              <span style={{
+                fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5,
+                padding: "2px 6px", borderRadius: 3,
+                background: isHighCrux ? `${item.color}18` : `${MUTED}15`,
+                color: isHighCrux ? item.color : MUTED
+              }}>{isHighCrux ? "Debate this" : "Lower priority"}</span>
+            </div>
+          </div>
+        );
+      })}
+    </CollapsiblePanel>
+  );
+}
+
 export default function App() {
   const [step, setStep] = useState(0);
   const [scenario, setScenario] = useState("blended");
@@ -283,6 +500,19 @@ export default function App() {
   const pDoom = stepVals.reduce((a, v) => a * v, 1);
   const rc = riskColor(pDoom);
   const branch = BRANCHES[step];
+
+  const sensitivityReport = useMemo(
+    () => computeSensitivityReport(branchMode, direct, t2, t2Mode, t3),
+    [branchMode, direct, t2, t2Mode, t3]
+  );
+  const drivingAssumptions = useMemo(
+    () => summarizeDrivingAssumptions(sensitivityReport),
+    [sensitivityReport]
+  );
+  const cruxView = useMemo(
+    () => computeCruxView(sensitivityReport),
+    [sensitivityReport]
+  );
   const expanded = branchMode[branch.key] === "expand";
   const score = stepVals[step];
   const selScenario = SCENARIOS.find(s => s.id === scenario);
@@ -301,7 +531,7 @@ export default function App() {
         <div style={{ textAlign: "center", marginBottom: 36 }}>
           <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 3, color: MUTED, marginBottom: 8 }}>AISC Team 19 · 2026</div>
           <h1 style={{ fontSize: 24, fontWeight: 700, color: TEXT, margin: 0 }}>AI Existential Risk Calculator</h1>
-          <div style={{ fontSize: 14, color: TEXT2, lineHeight: 1.65, marginTop: 14, maxWidth: 500, margin: "14px auto 0" }}>
+          <div style={{ fontSize: 14, color: TEXT2, lineHeight: 1.65, maxWidth: 500, margin: "14px auto 0" }}>
             This tool estimates the probability of existential-level harm to humanity from artificial intelligence by decomposing the question into four conditional steps that scorers evaluate in sequence.
           </div>
         </div>
@@ -490,6 +720,14 @@ export default function App() {
             cursor: step === 3 ? "default" : "pointer",
             fontFamily: "inherit"
           }}>{step === 3 ? "Scoring Complete" : "Next Step"}</button>
+        </div>
+
+        {/* ─── ANALYSIS ─── */}
+        <div style={{ marginTop: 32 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 2, color: MUTED, marginBottom: 16, paddingBottom: 8, borderBottom: `1px solid ${RULE}` }}>Analysis</div>
+          <DrivingAssumptionsPanel items={drivingAssumptions} />
+          <SensitivityReportPanel items={sensitivityReport} />
+          <CruxViewPanel items={cruxView} />
         </div>
 
         {/* Methodology */}
