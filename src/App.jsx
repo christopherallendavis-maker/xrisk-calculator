@@ -28,7 +28,7 @@ const TIME_OPTIONS = [
 
 const BRANCHES = [
   {
-    key: "intelligence", n: 1, label: "Intelligence",
+    key: "intelligence", n: 1, label: "Intelligence", color: "#047857",
     q: "How likely is it that a sufficiently capable AI system is created, with cross-domain strategic competence, persistent autonomous operation, and the ability to acquire and sustain resources?",
     cond: null, gate: "AND",
     tier2: [
@@ -44,7 +44,7 @@ const BRANCHES = [
     ]
   },
   {
-    key: "alignment", n: 2, label: "Alignment",
+    key: "alignment", n: 2, label: "Alignment", color: "#B91C1C",
     q: "Given that such a system exists, how likely is it that it operates in a hazardous mode, whether through autonomous misalignment, deliberate misuse by human actors, or structural/emergent harm from widespread deployment?",
     cond: "A sufficiently capable AI system exists.", gate: "OR",
     tier2: [
@@ -60,9 +60,9 @@ const BRANCHES = [
     ]
   },
   {
-    key: "influence", n: 3, label: "Influence",
+    key: "influence", n: 3, label: "Influence", color: "#7C3AED",
     q: "Given a hazardous AI deployment, how likely is it that at least one pathway to decisive real-world leverage is secured, sufficient to make existential harm feasible absent effective human correction?",
-    cond: "A capable AI exists and is operating in a hazardous mode.", gate: "OR",
+    cond: "A capable AI exists and is misaligned.", gate: "OR",
     tier2: [
       { id: "systems", label: "Digital or Physical Systems Leverage",
         q: "How likely is it that the AI can achieve (or enable malicious human actors to achieve) a level of infiltration and control over digital and physical systems (including critical infrastructure, financial systems, military networks, industrial controls, CBRN capability) sufficient to cause existential-level harm?",
@@ -84,9 +84,9 @@ const BRANCHES = [
     ]
   },
   {
-    key: "environment", n: 4, label: "Environment",
-    q: "Given that a capable, hazardous AI has secured decisive real-world leverage, how likely is it that human governance, coordination, and response mechanisms fail to detect, contain, or shut it down before irreversible damage occurs?",
-    cond: "A capable, hazardous AI with decisive real-world leverage exists.", gate: "OR",
+    key: "environment", n: 4, label: "Environment", color: "#B45309",
+    q: "Given that a capable, misaligned AI has secured decisive real-world leverage, how likely is it that human governance, coordination, and response mechanisms fail to detect, contain, or shut it down before irreversible damage occurs?",
+    cond: "A capable, misaligned AI with decisive real-world leverage exists.", gate: "OR",
     tier2: [
       { id: "detection", label: "Detection Failure",
         q: "How likely is it that the threat is not recognized in time because the system's behavior is opaque, actively concealed, or normalized through gradual escalation?",
@@ -255,20 +255,25 @@ export default function App() {
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 4, color: FAINT, marginBottom: 6 }}>AISC Team 19 · 2026</div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: TEXT, fontFamily: "Georgia, 'Times New Roman', serif", margin: 0 }}>AI Existential Risk Calculator</h1>
+          <div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.6, marginTop: 12, maxWidth: 480, margin: "12px auto 0" }}>
+            This tool estimates the probability of existential-level harm to humanity from artificial intelligence by decomposing the question into four conditional steps that scorers evaluate in sequence.
+          </div>
         </div>
 
-        {/* Setup: Scenario + Time (collapsible after first use) */}
+        {/* Setup: Scenario + Time */}
+        <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 2, color: FAINT, marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${RULE}` }}>Assumptions</div>
+        <div style={{ fontSize: 11, color: TEXT2, lineHeight: 1.5, marginBottom: 16 }}>These frame your scoring but do not enter the calculation. The final probability is determined solely by the four steps below.</div>
         {showSetup && (
           <div style={{ marginBottom: 28 }}>
             {/* Scenario */}
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: TEXT, marginBottom: 4 }}>Threat Scenario</div>
               <div style={{ fontSize: 11, color: TEXT2, lineHeight: 1.5, marginBottom: 8 }}>Which type of AI threat are you primarily scoring? This is recorded alongside your scores to separate scenario-driven disagreement from capability-driven disagreement.</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
                 {SCENARIOS.map(s => (
                   <button key={s.id} onClick={() => setScenario(s.id)} style={{
-                    flex: "1 1 auto", minWidth: 110, padding: "8px 12px", cursor: "pointer",
-                    borderRadius: 4, fontSize: 11, fontWeight: 600, fontFamily: "inherit", textAlign: "left",
+                    padding: "8px 6px", cursor: "pointer",
+                    borderRadius: 4, fontSize: 10, fontWeight: 600, fontFamily: "inherit", textAlign: "center",
                     background: scenario === s.id ? ACCENT : "transparent",
                     border: `1.5px solid ${scenario === s.id ? ACCENT : BORDER}`,
                     color: scenario === s.id ? "#FFFFFF" : TEXT2, transition: "all 0.15s"
@@ -314,11 +319,17 @@ export default function App() {
           </div>
         )}
 
+        {/* Calculator section */}
+        <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 2, color: FAINT, marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${RULE}` }}>Calculator</div>
+        <div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.6, marginBottom: 20 }}>
+          This calculator uses a conditional probability chain. Score each step in order, assuming that all prior steps are already true. For example, when you score Alignment, assume a capable AI already exists. When you score Influence, assume a capable and misaligned AI already exists.
+        </div>
+
         {/* Progress bar */}
         <div style={{ marginBottom: 6 }}>
           <div style={{ display: "flex", gap: 3 }}>
             {BRANCHES.map((_, i) => (
-              <div key={i} style={{ flex: 1, height: 2, background: i <= step ? ACCENT : TRACK_OFF, transition: "background 0.3s" }} />
+              <div key={i} style={{ flex: 1, height: 2, background: i <= step ? BRANCHES[i].color : TRACK_OFF, transition: "background 0.3s" }} />
             ))}
           </div>
         </div>
@@ -329,9 +340,9 @@ export default function App() {
             {BRANCHES.map((b, i) => (
               <span key={i} onClick={() => setStep(i)} style={{
                 fontSize: 11, fontWeight: 600, cursor: "pointer",
-                color: i === step ? TEXT : FAINT,
+                color: i === step ? b.color : FAINT,
                 paddingBottom: 4,
-                borderBottom: i === step ? `2px solid ${ACCENT}` : "2px solid transparent",
+                borderBottom: i === step ? `2px solid ${b.color}` : "2px solid transparent",
                 transition: "all 0.2s"
               }}>{b.label}</span>
             ))}
@@ -344,8 +355,8 @@ export default function App() {
           <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
             {BRANCHES.map((b, i) => (
               <span key={i} style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-                <span style={{ fontSize: 10, color: FAINT }}>{b.label}</span>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 600, color: i === step ? TEXT : FAINT }}>{(stepVals[i]*100).toFixed(0)}%</span>
+                <span style={{ fontSize: 10, color: i === step ? b.color : FAINT }}>{b.label}</span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 600, color: i === step ? b.color : FAINT }}>{(stepVals[i]*100).toFixed(0)}%</span>
                 {i < 3 && <span style={{ color: RULE, fontSize: 10, margin: "0 2px" }}>×</span>}
               </span>
             ))}
