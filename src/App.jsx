@@ -1,16 +1,20 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
 
-// ═══ PALETTE: Ink & Paper ═══
+// ═══ PALETTE ═══
 const BG = "#FEFDFB";
 const CARD = "#FEFDFB";
 const TEXT = "#111827";
-const TEXT2 = "#6B7280";
+const TEXT2 = "#4B5563";
 const ACCENT = "#111827";
 const ACCENT_LIGHT = "#F3F2F0";
 const TRACK_OFF = "#E5E2DC";
 const BORDER = "#E5E2DC";
 const RULE = "#D1CEC8";
-const FAINT = "#9CA3AF";
+const MUTED = "#6B7280";
+
+// ═══ FONT ═══
+const SANS = "'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+const MONO = "'JetBrains Mono', 'SF Mono', 'Fira Code', monospace";
 
 const SCENARIOS = [
   { id: "autonomous", label: "Autonomous Misalignment", desc: "A system that has developed its own misaligned goals and is actively pursuing them, including strategic deception, power-seeking, and resistance to correction." },
@@ -63,6 +67,7 @@ const BRANCHES = [
     key: "influence", n: 3, label: "Influence", color: "#7C3AED",
     q: "Given a hazardous AI deployment, how likely is it that at least one pathway to decisive real-world leverage is secured, sufficient to make existential harm feasible absent effective human correction?",
     cond: "A capable AI exists and is misaligned.", gate: "OR",
+    guidance: "Under misuse scenarios where the human actor already has physical access to execute, the Influence bottleneck is reduced. Score Influence based on how much additional real-world reach the AI provides beyond what the actor already has. If the actor already has everything they need except the knowledge (which is scored in Step 1), Influence may be high.",
     tier2: [
       { id: "systems", label: "Digital or Physical Systems Leverage",
         q: "How likely is it that the AI can achieve (or enable malicious human actors to achieve) a level of infiltration and control over digital and physical systems (including critical infrastructure, financial systems, military networks, industrial controls, CBRN capability) sufficient to cause existential-level harm?",
@@ -108,6 +113,34 @@ function orCombine(p) { return 1 - p.reduce((a, v) => a * (1 - v), 1); }
 function andCombine(p) { return p.reduce((a, v) => a * v, 1); }
 function riskColor(v) { return v > .30 ? "#991B1B" : v > .15 ? "#92400E" : v > .05 ? "#78350F" : "#064E3B"; }
 
+// ═══ Editable text component ═══
+function EditableText({ text, onEdit, style }) {
+  return (
+    <div
+      contentEditable
+      suppressContentEditableWarning
+      onBlur={e => {
+        const newText = e.target.innerText.trim();
+        if (newText !== text) onEdit(newText);
+      }}
+      style={{
+        ...style,
+        outline: "none",
+        borderRadius: 3,
+        padding: "2px 0",
+        transition: "background 0.2s",
+        cursor: "text",
+      }}
+      onFocus={e => { e.target.style.background = ACCENT_LIGHT; }}
+      onMouseOver={e => { if (document.activeElement !== e.target) e.target.style.background = `${ACCENT_LIGHT}80`; }}
+      onMouseOut={e => { if (document.activeElement !== e.target) e.target.style.background = "transparent"; }}
+      onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.target.blur(); } }}
+    >
+      {text}
+    </div>
+  );
+}
+
 function Slider({ value, onChange, disabled }) {
   const pct = Math.round(value * 100);
   return (
@@ -122,69 +155,77 @@ function Slider({ value, onChange, disabled }) {
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", appearance: "none", background: "transparent", cursor: disabled ? "not-allowed" : "pointer", margin: 0, opacity: 0, zIndex: 2 }}
         />
       </div>
-      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 15, fontWeight: 700, color: disabled ? FAINT : TEXT, minWidth: 50, textAlign: "right" }}>{pct}%</span>
+      <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: disabled ? MUTED : TEXT, minWidth: 50, textAlign: "right" }}>{pct}%</span>
     </div>
   );
 }
 
-function Tier3Panel({ tier3, scores, onChange }) {
+function Tier3Panel({ tier3, scores, onChange, qEdits, onEditQ }) {
   const orScore = orCombine(scores);
   return (
     <div style={{ marginTop: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <span style={{ fontSize: 10, color: FAINT, textTransform: "uppercase", letterSpacing: 1.5 }}>{tier3.length} sub-questions, OR-combined</span>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600, color: TEXT }}>{(orScore*100).toFixed(0)}%</span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <span style={{ fontSize: 12, color: MUTED, letterSpacing: 0.5 }}>{tier3.length} sub-questions · OR-combined</span>
+        <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 600, color: TEXT }}>{(orScore*100).toFixed(0)}%</span>
       </div>
       {tier3.map((node, i) => (
-        <div key={node.id} style={{ marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600, color: ACCENT, background: ACCENT_LIGHT, padding: "2px 7px", borderRadius: 3 }}>{node.id}</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: TEXT }}>{node.label}</span>
+        <div key={node.id} style={{ marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 600, color: ACCENT, background: ACCENT_LIGHT, padding: "3px 8px", borderRadius: 3 }}>{node.id}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: TEXT }}>{node.label}</span>
           </div>
-          <div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.6, marginBottom: 8 }}>{node.q}</div>
+          <EditableText
+            text={qEdits[node.id] || node.q}
+            onEdit={v => onEditQ(node.id, v)}
+            style={{ fontSize: 13, color: TEXT2, lineHeight: 1.65, marginBottom: 10 }}
+          />
           <Slider value={scores[i]} onChange={v => onChange(i, v)} />
-          {i < tier3.length - 1 && <div style={{ height: 1, background: RULE, marginTop: 12, opacity: 0.5 }} />}
+          {i < tier3.length - 1 && <div style={{ height: 1, background: RULE, marginTop: 14, opacity: 0.5 }} />}
         </div>
       ))}
     </div>
   );
 }
 
-function Tier2Sub({ sub, directScore, onDirectChange, tier3Scores, onTier3Change, mode, onToggleMode }) {
+function Tier2Sub({ sub, directScore, onDirectChange, tier3Scores, onTier3Change, mode, onToggleMode, qEdits, onEditQ }) {
   const hasTier3 = sub.tier3 && sub.tier3.length > 0;
   const effectiveScore = mode === "breakdown" && hasTier3 ? orCombine(tier3Scores) : directScore;
 
   return (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: TEXT }}>{sub.label}</span>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700, color: TEXT }}>{(effectiveScore*100).toFixed(0)}%</span>
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: TEXT }}>{sub.label}</span>
+        <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: TEXT }}>{(effectiveScore*100).toFixed(0)}%</span>
       </div>
-      <div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.6, marginBottom: 10 }}>{sub.q}</div>
+      <EditableText
+        text={qEdits[sub.id] || sub.q}
+        onEdit={v => onEditQ(sub.id, v)}
+        style={{ fontSize: 13, color: TEXT2, lineHeight: 1.65, marginBottom: 12 }}
+      />
 
       {mode === "direct" && <Slider value={directScore} onChange={onDirectChange} />}
       {mode === "breakdown" && <Slider value={effectiveScore} onChange={() => {}} disabled />}
 
       {hasTier3 && (
-        <div style={{ marginTop: 8 }}>
+        <div style={{ marginTop: 10 }}>
           <span onClick={onToggleMode} style={{
-            fontSize: 11, fontWeight: 600, color: ACCENT, cursor: "pointer",
+            fontSize: 13, fontWeight: 600, color: ACCENT, cursor: "pointer",
             borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1
           }}>{mode === "breakdown" ? "Score directly instead" : "Break it down"}</span>
         </div>
       )}
 
       {!hasTier3 && (
-        <div style={{ marginTop: 6, fontSize: 10, color: FAINT, fontStyle: "italic" }}>Sub-questions to be developed</div>
+        <div style={{ marginTop: 8, fontSize: 12, color: MUTED, fontStyle: "italic" }}>Sub-questions to be developed</div>
       )}
 
       {mode === "breakdown" && hasTier3 && (
-        <div style={{ marginLeft: 16, paddingLeft: 16, borderLeft: `1px solid ${RULE}`, marginTop: 12 }}>
-          <Tier3Panel tier3={sub.tier3} scores={tier3Scores} onChange={onTier3Change} />
+        <div style={{ marginLeft: 16, paddingLeft: 16, borderLeft: `1px solid ${RULE}`, marginTop: 14 }}>
+          <Tier3Panel tier3={sub.tier3} scores={tier3Scores} onChange={onTier3Change} qEdits={qEdits} onEditQ={onEditQ} />
         </div>
       )}
 
-      <div style={{ height: 1, background: RULE, marginTop: 16 }} />
+      <div style={{ height: 1, background: RULE, marginTop: 18 }} />
     </div>
   );
 }
@@ -195,6 +236,10 @@ export default function App() {
   const [timeHorizon, setTimeHorizon] = useState(30);
   const [showSetup, setShowSetup] = useState(true);
   const [notesOpen, setNotesOpen] = useState(false);
+
+  // Editable question text overrides
+  const [qEdits, setQEdits] = useState({});
+  const editQ = useCallback((id, text) => setQEdits(p => ({ ...p, [id]: text })), []);
 
   const [branchMode, setBranchMode] = useState({
     intelligence: "direct", alignment: "direct", influence: "direct", environment: "direct"
@@ -243,57 +288,56 @@ export default function App() {
   const selScenario = SCENARIOS.find(s => s.id === scenario);
 
   return (
-    <div style={{ minHeight: "100vh", color: TEXT, fontFamily: "'DM Sans', -apple-system, sans-serif", background: BG }}>
+    <div style={{ minHeight: "100vh", color: TEXT, fontFamily: SANS, background: BG }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
       <style>{`
         input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:1px;height:1px;background:transparent}
+        [contenteditable]:focus{background:${ACCENT_LIGHT}!important}
       `}</style>
 
-      <div style={{ maxWidth: 600, margin: "0 auto", padding: "40px 24px 60px" }}>
+      <div style={{ maxWidth: 620, margin: "0 auto", padding: "40px 24px 60px" }}>
 
         {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 4, color: FAINT, marginBottom: 6 }}>AISC Team 19 · 2026</div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: TEXT, fontFamily: "Georgia, 'Times New Roman', serif", margin: 0 }}>AI Existential Risk Calculator</h1>
-          <div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.6, marginTop: 12, maxWidth: 480, margin: "12px auto 0" }}>
+        <div style={{ textAlign: "center", marginBottom: 36 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 3, color: MUTED, marginBottom: 8 }}>AISC Team 19 · 2026</div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: TEXT, margin: 0 }}>AI Existential Risk Calculator</h1>
+          <div style={{ fontSize: 14, color: TEXT2, lineHeight: 1.65, marginTop: 14, maxWidth: 500, margin: "14px auto 0" }}>
             This tool estimates the probability of existential-level harm to humanity from artificial intelligence by decomposing the question into four conditional steps that scorers evaluate in sequence.
           </div>
         </div>
 
-        {/* Setup: Scenario + Time */}
-        <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 2, color: FAINT, marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${RULE}` }}>Assumptions</div>
-        <div style={{ fontSize: 11, color: TEXT2, lineHeight: 1.5, marginBottom: 16 }}>These frame your scoring but do not enter the calculation. The final probability is determined solely by the four steps below.</div>
+        {/* ─── ASSUMPTIONS ─── */}
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 2, color: MUTED, marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${RULE}` }}>Assumptions</div>
+        <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.6, marginBottom: 16 }}>These frame your scoring but do not enter the calculation. The final probability is determined solely by the four steps below.</div>
         {showSetup && (
-          <div style={{ marginBottom: 28 }}>
-            {/* Scenario */}
+          <div style={{ marginBottom: 32 }}>
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: TEXT, marginBottom: 4 }}>Threat Scenario</div>
-              <div style={{ fontSize: 11, color: TEXT2, lineHeight: 1.5, marginBottom: 8 }}>Which type of AI threat are you primarily scoring? This is recorded alongside your scores to separate scenario-driven disagreement from capability-driven disagreement.</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: TEXT, marginBottom: 4 }}>Threat Scenario</div>
+              <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.6, marginBottom: 10 }}>Which type of AI threat are you primarily scoring? This separates scenario-driven disagreement from capability-driven disagreement.</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
                 {SCENARIOS.map(s => (
                   <button key={s.id} onClick={() => setScenario(s.id)} style={{
-                    padding: "8px 6px", cursor: "pointer",
-                    borderRadius: 4, fontSize: 10, fontWeight: 600, fontFamily: "inherit", textAlign: "center",
+                    padding: "9px 6px", cursor: "pointer",
+                    borderRadius: 4, fontSize: 12, fontWeight: 600, fontFamily: "inherit", textAlign: "center",
                     background: scenario === s.id ? ACCENT : "transparent",
                     border: `1.5px solid ${scenario === s.id ? ACCENT : BORDER}`,
                     color: scenario === s.id ? "#FFFFFF" : TEXT2, transition: "all 0.15s"
                   }}>{s.label}</button>
                 ))}
               </div>
-              <div style={{ marginTop: 8, fontSize: 11, color: TEXT2, lineHeight: 1.5, fontStyle: "italic" }}>{selScenario.desc}</div>
+              <div style={{ marginTop: 10, fontSize: 13, color: TEXT2, lineHeight: 1.6, fontStyle: "italic" }}>{selScenario.desc}</div>
             </div>
 
             <div style={{ height: 1, background: RULE, marginBottom: 16 }} />
 
-            {/* Time Horizon */}
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: TEXT, marginBottom: 4 }}>Time Horizon</div>
-              <div style={{ fontSize: 11, color: TEXT2, lineHeight: 1.5, marginBottom: 8 }}>Over what period are you assessing these risks? All questions should be scored with this timeframe in mind.</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: TEXT, marginBottom: 4 }}>Time Horizon</div>
+              <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.6, marginBottom: 10 }}>Over what period are you assessing these risks? All questions should be scored with this timeframe in mind.</div>
               <div style={{ display: "flex", gap: 6 }}>
                 {TIME_OPTIONS.map(t => (
                   <button key={t.value} onClick={() => setTimeHorizon(t.value)} style={{
-                    flex: 1, padding: "8px 0", cursor: "pointer",
-                    borderRadius: 4, fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                    flex: 1, padding: "9px 0", cursor: "pointer",
+                    borderRadius: 4, fontSize: 13, fontWeight: 600, fontFamily: "inherit",
                     background: timeHorizon === t.value ? ACCENT : "transparent",
                     border: `1.5px solid ${timeHorizon === t.value ? ACCENT : BORDER}`,
                     color: timeHorizon === t.value ? "#FFFFFF" : TEXT2, transition: "all 0.15s"
@@ -303,85 +347,93 @@ export default function App() {
             </div>
 
             <div style={{ height: 1, background: RULE, marginTop: 16 }} />
-
             <div style={{ marginTop: 12, textAlign: "right" }}>
-              <span onClick={() => setShowSetup(false)} style={{ fontSize: 11, color: ACCENT, cursor: "pointer", borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1 }}>Collapse setup</span>
+              <span onClick={() => setShowSetup(false)} style={{ fontSize: 13, color: ACCENT, cursor: "pointer", borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1 }}>Collapse</span>
             </div>
           </div>
         )}
 
         {!showSetup && (
-          <div style={{ marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 11, color: TEXT2 }}>
+          <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 13, color: TEXT2 }}>
               {selScenario.label} · {timeHorizon} years
             </div>
-            <span onClick={() => setShowSetup(true)} style={{ fontSize: 11, color: ACCENT, cursor: "pointer", borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1 }}>Change</span>
+            <span onClick={() => setShowSetup(true)} style={{ fontSize: 13, color: ACCENT, cursor: "pointer", borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1 }}>Change</span>
           </div>
         )}
 
-        {/* Calculator section */}
-        <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 2, color: FAINT, marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${RULE}` }}>Calculator</div>
-        <div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.6, marginBottom: 20 }}>
-          This calculator uses a conditional probability chain. Score each step in order, assuming that all prior steps are already true. For example, when you score Alignment, assume a capable AI already exists. When you score Influence, assume a capable and misaligned AI already exists.
+        {/* ─── CALCULATOR ─── */}
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 2, color: MUTED, marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${RULE}` }}>Calculator</div>
+        <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.65, marginBottom: 24 }}>
+          This uses a conditional probability chain. Score each step assuming all prior steps are already true. When you score Alignment, assume a capable AI exists. When you score Influence, assume a capable and misaligned AI exists. The product of the four conditionals gives your P(existential catastrophe).
         </div>
 
         {/* Progress bar */}
-        <div style={{ marginBottom: 6 }}>
+        <div style={{ marginBottom: 8 }}>
           <div style={{ display: "flex", gap: 3 }}>
-            {BRANCHES.map((_, i) => (
-              <div key={i} style={{ flex: 1, height: 2, background: i <= step ? BRANCHES[i].color : TRACK_OFF, transition: "background 0.3s" }} />
+            {BRANCHES.map((b, i) => (
+              <div key={i} style={{ flex: 1, height: 3, borderRadius: 1.5, background: i <= step ? b.color : TRACK_OFF, transition: "background 0.3s" }} />
             ))}
           </div>
         </div>
 
         {/* Step navigation */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 28 }}>
-          <div style={{ display: "flex", gap: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 24 }}>
+          <div style={{ display: "flex", gap: 20 }}>
             {BRANCHES.map((b, i) => (
               <span key={i} onClick={() => setStep(i)} style={{
-                fontSize: 11, fontWeight: 600, cursor: "pointer",
-                color: i === step ? b.color : FAINT,
+                fontSize: 13, fontWeight: 600, cursor: "pointer",
+                color: i === step ? b.color : MUTED,
                 paddingBottom: 4,
                 borderBottom: i === step ? `2px solid ${b.color}` : "2px solid transparent",
                 transition: "all 0.2s"
               }}>{b.label}</span>
             ))}
           </div>
-          <span style={{ fontSize: 10, color: FAINT }}>{step + 1} of 4</span>
+          <span style={{ fontSize: 12, color: MUTED }}>{step + 1} / 4</span>
         </div>
 
         {/* Running result */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 24, padding: "12px 0", borderTop: `1px solid ${RULE}`, borderBottom: `1px solid ${RULE}` }}>
-          <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 28, padding: "14px 0", borderTop: `1px solid ${RULE}`, borderBottom: `1px solid ${RULE}` }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
             {BRANCHES.map((b, i) => (
-              <span key={i} style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-                <span style={{ fontSize: 10, color: i === step ? b.color : FAINT }}>{b.label}</span>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 600, color: i === step ? b.color : FAINT }}>{(stepVals[i]*100).toFixed(0)}%</span>
-                {i < 3 && <span style={{ color: RULE, fontSize: 10, margin: "0 2px" }}>×</span>}
+              <span key={i} style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                <span style={{ fontSize: 12, fontWeight: 500, color: b.color }}>{b.label}</span>
+                <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, color: b.color }}>{(stepVals[i]*100).toFixed(0)}%</span>
+                {i < 3 && <span style={{ color: RULE, fontSize: 12, margin: "0 2px" }}>×</span>}
               </span>
             ))}
           </div>
-          <div>
-            <span style={{ fontSize: 10, color: FAINT, marginRight: 6 }}>=</span>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 16, fontWeight: 700, color: rc }}>{(pDoom*100).toFixed(1)}%</span>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+            <span style={{ fontSize: 12, color: MUTED }}>=</span>
+            <span style={{ fontFamily: MONO, fontSize: 18, fontWeight: 700, color: rc }}>{(pDoom*100).toFixed(1)}%</span>
           </div>
         </div>
 
         {/* Current step content */}
         <div style={{ minHeight: 280 }}>
-          {/* Condition */}
           {branch.cond && (
-            <div style={{ fontSize: 11, color: ACCENT, marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, color: branch.color, marginBottom: 14 }}>
               Assuming: {branch.cond}
             </div>
           )}
 
-          {/* Question */}
-          <div style={{ fontSize: 17, color: TEXT, lineHeight: 1.7, marginBottom: 24, fontFamily: "Georgia, 'Times New Roman', serif" }}>
-            {branch.q}
-          </div>
+          <EditableText
+            text={qEdits[branch.key] || branch.q}
+            onEdit={v => editQ(branch.key, v)}
+            style={{ fontSize: 17, fontWeight: 500, color: TEXT, lineHeight: 1.7, marginBottom: 24 }}
+          />
 
-          {/* Score */}
+          {branch.guidance && (
+            <div style={{
+              fontSize: 13, color: TEXT2, lineHeight: 1.65, marginBottom: 20,
+              padding: "12px 14px", background: ACCENT_LIGHT, borderLeft: `3px solid ${branch.color}`,
+              borderRadius: "0 4px 4px 0"
+            }}>
+              <strong style={{ color: TEXT, fontWeight: 600 }}>Scoring guidance:</strong> {branch.guidance}
+            </div>
+          )}
+
           {!expanded && (
             <Slider value={direct[branch.key]} onChange={v => setDirect(p => ({...p, [branch.key]: v}))} />
           )}
@@ -389,20 +441,18 @@ export default function App() {
             <Slider value={score} onChange={() => {}} disabled />
           )}
 
-          {/* Toggle */}
-          <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span onClick={() => setBranchMode(p => ({...p, [branch.key]: expanded ? "direct" : "expand"}))} style={{
-              fontSize: 11, fontWeight: 600, color: ACCENT, cursor: "pointer",
+              fontSize: 13, fontWeight: 600, color: ACCENT, cursor: "pointer",
               borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1
             }}>{expanded ? "Score directly instead" : "Break it down"}</span>
             {expanded && (
-              <span style={{ fontSize: 10, color: FAINT, textTransform: "uppercase", letterSpacing: 1 }}>
+              <span style={{ fontSize: 12, color: MUTED, letterSpacing: 0.5 }}>
                 {branch.gate === "AND" ? "All required (AND)" : "Any one sufficient (OR)"}
               </span>
             )}
           </div>
 
-          {/* Tier 2 */}
           {expanded && (
             <div style={{ marginTop: 24 }}>
               <div style={{ height: 1, background: RULE, marginBottom: 20 }} />
@@ -416,6 +466,8 @@ export default function App() {
                   onTier3Change={(i, v) => setT3Score(sub.id, i, v)}
                   mode={t2Mode[sub.id]}
                   onToggleMode={() => toggleT2Mode(sub.id)}
+                  qEdits={qEdits}
+                  onEditQ={editQ}
                 />
               ))}
             </div>
@@ -425,13 +477,13 @@ export default function App() {
         {/* Navigation */}
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 32 }}>
           <button onClick={() => step > 0 && setStep(step - 1)} style={{
-            padding: "10px 24px", borderRadius: 4, fontSize: 12, fontWeight: 600,
+            padding: "10px 24px", borderRadius: 4, fontSize: 13, fontWeight: 600,
             background: "transparent", border: `1.5px solid ${step === 0 ? TRACK_OFF : BORDER}`,
-            color: step === 0 ? FAINT : TEXT2, cursor: step === 0 ? "default" : "pointer",
+            color: step === 0 ? MUTED : TEXT2, cursor: step === 0 ? "default" : "pointer",
             fontFamily: "inherit"
           }}>Back</button>
           <button onClick={() => step < 3 && setStep(step + 1)} style={{
-            padding: "10px 24px", borderRadius: 4, fontSize: 12, fontWeight: 600,
+            padding: "10px 24px", borderRadius: 4, fontSize: 13, fontWeight: 600,
             background: step === 3 ? ACCENT : "transparent",
             border: `1.5px solid ${step === 3 ? ACCENT : BORDER}`,
             color: step === 3 ? "#FFFFFF" : TEXT,
@@ -442,21 +494,22 @@ export default function App() {
 
         {/* Methodology */}
         <div style={{ marginTop: 40 }}>
-          <div onClick={() => setNotesOpen(!notesOpen)} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: `1px solid ${RULE}` }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: FAINT, textTransform: "uppercase", letterSpacing: 1 }}>Methodology</span>
-            <span style={{ fontSize: 12, color: FAINT, transform: notesOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }}>▾</span>
+          <div onClick={() => setNotesOpen(!notesOpen)} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderTop: `1px solid ${RULE}` }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: MUTED, letterSpacing: 0.5 }}>Methodology</span>
+            <span style={{ fontSize: 14, color: MUTED, transform: notesOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }}>▾</span>
           </div>
           {notesOpen && (
-            <div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.7, paddingTop: 8 }}>
-              <p style={{ marginBottom: 8 }}><strong style={{ color: TEXT }}>Conditional chain:</strong> Each step is scored assuming prior steps are true. The product of the four conditional probabilities equals the joint probability. Correlations between branches are captured in each conditional assessment.</p>
-              <p style={{ marginBottom: 8 }}><strong style={{ color: TEXT }}>Three-tier scoring:</strong> Each branch can be scored directly (Tier 1), broken into sub-branches (Tier 2), or broken further into sub-questions where available (Tier 3). Your chosen depth determines how the score is computed.</p>
-              <p style={{ marginBottom: 8 }}><strong style={{ color: TEXT }}>Gate logic:</strong> Intelligence sub-branches are AND-combined (all required). Alignment, Influence, and Environment sub-branches are OR-combined (any one sufficient).</p>
-              <p style={{ marginBottom: 0 }}><strong style={{ color: TEXT }}>Precision:</strong> Treat the output as an order-of-magnitude estimate. Input uncertainty propagates, so the true range is wider than the displayed value.</p>
+            <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.7, paddingTop: 10 }}>
+              <p style={{ marginBottom: 10 }}><strong style={{ color: TEXT }}>Conditional decomposition.</strong> This follows the structure of Carlsmith (2022) and related threat models: factor P(existential catastrophe from AI) into a product of conditional probabilities, where each step assumes all prior steps obtain. This avoids double-counting and isolates genuine disagreement to the step where it occurs.</p>
+              <p style={{ marginBottom: 10 }}><strong style={{ color: TEXT }}>Three-tier scoring.</strong> Each branch can be scored directly (Tier 1), broken into sub-branches (Tier 2), or decomposed further into sub-questions where available (Tier 3). The scoring depth you choose determines how the branch probability is computed.</p>
+              <p style={{ marginBottom: 10 }}><strong style={{ color: TEXT }}>Gate logic.</strong> Intelligence sub-branches are AND-combined (all conditions required). Alignment, Influence, and Environment sub-branches are OR-combined (any single pathway sufficient).</p>
+              <p style={{ marginBottom: 10 }}><strong style={{ color: TEXT }}>Editable questions.</strong> All question text is editable. Click any question to revise the framing for your own threat model. Edits persist for the session.</p>
+              <p style={{ marginBottom: 0 }}><strong style={{ color: TEXT }}>Precision.</strong> Treat the output as an order-of-magnitude estimate. Uncertainty in each input propagates multiplicatively, so the true credible interval is substantially wider than the point estimate displayed.</p>
             </div>
           )}
         </div>
 
-        <div style={{ textAlign: "center", fontSize: 10, color: FAINT, marginTop: 24 }}>
+        <div style={{ textAlign: "center", fontSize: 12, color: MUTED, marginTop: 24, lineHeight: 1.6 }}>
           4 branches · 3-tier scoring · AISC Team 19
         </div>
       </div>
