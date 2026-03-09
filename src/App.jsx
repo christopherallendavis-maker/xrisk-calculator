@@ -356,54 +356,39 @@ function CollapsiblePanel({ title, defaultOpen = false, children }) {
   );
 }
 
-function DrivingAssumptionsPanel({ items }) {
-  if (items.length === 0) return null;
-  return (
-    <CollapsiblePanel title="Driving Assumptions" defaultOpen={true}>
-      <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.6, marginBottom: 12 }}>
-        The assumptions that most affect your P(doom) estimate. These are where small changes in your credence produce the largest shifts in the final number.
-      </div>
-      {items.map((item, i) => (
-        <div key={item.id} style={{
-          display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 14,
-          padding: "10px 12px", background: ACCENT_LIGHT, borderRadius: 4,
-          borderLeft: `3px solid ${item.color}`
-        }}>
-          <span style={{ fontFamily: MONO, fontSize: 18, fontWeight: 700, color: item.color, minWidth: 20 }}>{i + 1}</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: TEXT }}>{item.label}</span>
-              <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: TEXT }}>{(item.currentValue * 100).toFixed(0)}%</span>
-            </div>
-            <div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.5 }}>
-              Most influential. {item.summary}.
-            </div>
-          </div>
-        </div>
-      ))}
-    </CollapsiblePanel>
-  );
-}
-
-function SensitivityReportPanel({ items }) {
+function SensitivityReportPanel({ items, drivingItems }) {
   if (items.length === 0) return null;
   const maxSens = Math.max(...items.map(i => i.sensitivity), 0.001);
+  const drivingIds = new Set(drivingItems.map(d => d.id));
   return (
-    <CollapsiblePanel title="Sensitivity Report" defaultOpen={false}>
+    <CollapsiblePanel title="Sensitivity Report" defaultOpen={true}>
       <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.6, marginBottom: 12 }}>
         Each assumption perturbed ±5 percentage points. Bar width shows how much P(doom) changes.
       </div>
       {items.map(item => {
         const barPct = (item.sensitivity / maxSens) * 100;
+        const isDriving = drivingIds.has(item.id);
+        const drivingItem = isDriving ? drivingItems.find(d => d.id === item.id) : null;
         return (
-          <div key={item.id} style={{ marginBottom: 10 }}>
+          <div key={item.id} style={{
+            marginBottom: isDriving ? 14 : 10,
+            padding: isDriving ? "10px 12px" : "0",
+            background: isDriving ? ACCENT_LIGHT : "transparent",
+            borderRadius: isDriving ? 4 : 0,
+            borderLeft: isDriving ? `3px solid ${item.color}` : "none"
+          }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 3 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: TEXT, maxWidth: "60%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
+              <span style={{ fontSize: isDriving ? 13 : 12, fontWeight: 600, color: TEXT, maxWidth: "60%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
               <span style={{ fontSize: 11, color: MUTED, fontFamily: MONO }}>{(item.currentValue * 100).toFixed(0)}% · Δ{(item.sensitivity * 100).toFixed(2)}pp</span>
             </div>
             <div style={{ width: "100%", height: 6, background: TRACK_OFF, borderRadius: 3 }}>
               <div style={{ width: `${barPct}%`, height: 6, background: item.color, borderRadius: 3, transition: "width 0.3s" }} />
             </div>
+            {drivingItem && (
+              <div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.5, marginTop: 6 }}>
+                {drivingItem.summary}
+              </div>
+            )}
           </div>
         );
       })}
@@ -417,32 +402,23 @@ function CruxViewPanel({ items }) {
   return (
     <CollapsiblePanel title="Crux View" defaultOpen={false}>
       <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.6, marginBottom: 12 }}>
-        Assumptions most worth debating: high sensitivity combined with room for genuine disagreement. Assumptions you already hold with extreme confidence score lower.
+        Assumptions where sensitivity and genuine uncertainty overlap. Assumptions you hold with extreme confidence are weighted lower even if they are influential.
       </div>
-      {topCruxes.map(item => {
-        const isHighCrux = item.cruxScore > (topCruxes[0].cruxScore * 0.5);
-        return (
-          <div key={item.id} style={{
-            marginBottom: 10, padding: "10px 12px", borderRadius: 4,
-            background: isHighCrux ? `${item.color}08` : ACCENT_LIGHT,
-            border: `1px solid ${isHighCrux ? `${item.color}30` : BORDER}`
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: TEXT }}>{item.label}</span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: item.color, fontFamily: MONO }}>{(item.currentValue * 100).toFixed(0)}%</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <span style={{ fontSize: 12, color: TEXT2 }}>{item.conviction} · Sensitivity Δ{(item.sensitivity * 100).toFixed(2)}pp</span>
-              <span style={{
-                fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5,
-                padding: "2px 6px", borderRadius: 3,
-                background: isHighCrux ? `${item.color}18` : `${MUTED}15`,
-                color: isHighCrux ? item.color : MUTED
-              }}>{isHighCrux ? "Debate this" : "Lower priority"}</span>
-            </div>
+      {topCruxes.map(item => (
+        <div key={item.id} style={{
+          marginBottom: 10, padding: "10px 12px", borderRadius: 4,
+          background: ACCENT_LIGHT,
+          border: `1px solid ${BORDER}`
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: TEXT }}>{item.label}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: item.color, fontFamily: MONO }}>{(item.currentValue * 100).toFixed(0)}%</span>
           </div>
-        );
-      })}
+          <div style={{ fontSize: 12, color: TEXT2 }}>
+            {item.conviction} · Sensitivity Δ{(item.sensitivity * 100).toFixed(2)}pp
+          </div>
+        </div>
+      ))}
     </CollapsiblePanel>
   );
 }
@@ -725,8 +701,7 @@ export default function App() {
         {/* ─── ANALYSIS ─── */}
         <div style={{ marginTop: 32 }}>
           <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 2, color: MUTED, marginBottom: 16, paddingBottom: 8, borderBottom: `1px solid ${RULE}` }}>Analysis</div>
-          <DrivingAssumptionsPanel items={drivingAssumptions} />
-          <SensitivityReportPanel items={sensitivityReport} />
+          <SensitivityReportPanel items={sensitivityReport} drivingItems={drivingAssumptions} />
           <CruxViewPanel items={cruxView} />
         </div>
 
