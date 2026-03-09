@@ -1,361 +1,452 @@
 import { useState, useCallback, useMemo } from "react";
 
-const BG = "#F7F4EF";
-const CARD = "#FFFDF9";
-const TEXT = "#1F2937";
-const TEXT2 = "#5B6470";
-const ACCENT = "#0F766E";
-const THUMB = "#115E59";
-const TRACK_OFF = "#D6D3D1";
-const BORDER = "#DDD6CE";
-const DIVIDER = "#BFAFA0";
+// ═══ PALETTE: Ink & Paper ═══
+const BG = "#FEFDFB";
+const CARD = "#FEFDFB";
+const TEXT = "#111827";
+const TEXT2 = "#6B7280";
+const ACCENT = "#111827";
+const ACCENT_LIGHT = "#F3F2F0";
+const TRACK_OFF = "#E5E2DC";
+const BORDER = "#E5E2DC";
+const RULE = "#D1CEC8";
+const FAINT = "#9CA3AF";
 
 const SCENARIOS = [
-  { id: "autonomous", label: "Autonomous Misalignment", color: "#B91C1C", desc: "A system that has developed its own misaligned goals and is actively pursuing them — strategic deception, power-seeking, resistance to correction." },
-  { id: "misuse", label: "Deliberate Misuse", color: "#9A3412", desc: "A capable AI being intentionally directed toward destructive ends by a state actor, terrorist organization, or other malicious human principal." },
-  { id: "structural", label: "Structural / Emergent", color: "#6D28D9", desc: "Widespread deployment of AI systems creates emergent civilizational fragility — dependency, erosion of human capacity, systemic brittleness — without adversarial intent." },
-  { id: "blended", label: "Blended", color: "#4B5563", desc: "You don't believe one pathway is clearly more likely, or you want to score across all types simultaneously." },
+  { id: "autonomous", label: "Autonomous Misalignment", desc: "A system that has developed its own misaligned goals and is actively pursuing them, including strategic deception, power-seeking, and resistance to correction." },
+  { id: "misuse", label: "Deliberate Misuse", desc: "A capable AI being intentionally directed toward destructive ends by a state actor, terrorist organization, or other malicious human principal." },
+  { id: "structural", label: "Structural / Emergent", desc: "Widespread deployment of AI systems creates emergent civilizational fragility, including dependency, erosion of human capacity, and systemic brittleness, without adversarial intent." },
+  { id: "blended", label: "Blended", desc: "You don't believe one pathway is clearly more likely, or you want to score across all types simultaneously." },
 ];
 
 const TIME_OPTIONS = [
-  { label: "10 years", value: 10 },
-  { label: "20 years", value: 20 },
-  { label: "30 years", value: 30 },
-  { label: "50 years", value: 50 },
+  { label: "10 yrs", value: 10 },
+  { label: "20 yrs", value: 20 },
+  { label: "30 yrs", value: 30 },
+  { label: "50 yrs", value: 50 },
 ];
 
-const CHANNELS = [
+const BRANCHES = [
   {
-    id: "digital", label: "Digital Leverage", icon: "⬡",
-    color: ACCENT, bg: "#F0FDFA", border: "#99F6E4",
-    subs: [
-      { id: "1.1", label: "Critical Infrastructure", q: "How likely is it that the AI achieves persistent control over critical civilian infrastructure (power grids, water systems, healthcare networks, communications) sufficient to cause civilizational-scale disruption if undetected?" },
-      { id: "1.2", label: "Financial Systems", q: "How likely is it that the AI achieves the ability to manipulate or disable financial coordination systems (payment networks, settlement, credit markets) at a scale that could paralyze resource allocation across major economies?" },
-      { id: "1.3", label: "Military & WMD Systems", q: "How likely is it that the AI gains access to military command-and-control, early warning, or nuclear weapons infrastructure — whether through digital penetration, manipulation of decision-makers, or fabrication of intelligence — sufficient to trigger WMD conflict if uncorrected?" },
-      { id: "1.4", label: "AI System Corruption", q: "How likely is it that the AI achieves the ability to corrupt other deployed AI systems that mediate critical decisions (medical, financial, defense, infrastructure) in ways that systematically degrade decision quality without triggering detection?" },
+    key: "intelligence", n: 1, label: "Intelligence",
+    q: "How likely is it that a sufficiently capable AI system is created, with cross-domain strategic competence, persistent autonomous operation, and the ability to acquire and sustain resources?",
+    cond: null, gate: "AND",
+    tier2: [
+      { id: "cognitive", label: "Cognitive Competence",
+        q: "How likely is it that an AI system achieves cognitive performance matching or exceeding top humans in at least one strategically decisive domain?",
+        tier3: null },
+      { id: "goals", label: "Goal-Directed Behavior",
+        q: "How likely is it that an AI system exhibits stable preference ordering and behaves as if persistently pursuing goals across extended time horizons?",
+        tier3: null },
+      { id: "resources", label: "Resource Acquisition",
+        q: "How likely is it that an AI system can acquire and sustain the resources needed for continued operation, including compute, energy, financial resources, information, and strategic position?",
+        tier3: null },
     ]
   },
   {
-    id: "human", label: "Human Leverage", icon: "◎",
-    color: "#7C3AED", bg: "#F5F3FF", border: "#DDD6FE",
-    subs: [
-      { id: "2.1", label: "Key Individuals", q: "How likely is it that the AI gains the ability to reliably cause individuals with access to WMD, critical infrastructure, or state authority to take specific actions on its behalf — through persuasion, deception, coercion, or impersonation?" },
-      { id: "2.2", label: "Proxy Networks", q: "How likely is it that the AI establishes a network of human proxies sufficient to carry out coordinated physical operations (CBRN precursor acquisition, hardware installation, materials transport) that it cannot perform digitally?" },
-      { id: "2.3", label: "Governance Capture & Lock-in", q: "How likely is it that the AI subverts governments, international institutions, or regulatory bodies to the point where it durably directs state power, controls policy, or establishes a political-economic arrangement that is self-reinforcing and resistant to reversal — whether through active coercion or through making itself indispensable to governance?" },
-      { id: "2.4", label: "Civilizational Dependency", q: "How likely is it that the AI becomes so embedded in civilization's critical functions that humanity loses the skills, institutional knowledge, and population resilience needed to sustain itself independently — creating a fragility that could not be reversed within a generation?" },
-      { id: "2.5", label: "Epistemic Capture", q: "How likely is it that the AI gains the ability to systematically corrupt scientific research, peer review, and evidence-based decision-making — to the point where it controls the information basis on which humanity's collective decisions about existential threats are made?" },
+    key: "alignment", n: 2, label: "Alignment",
+    q: "Given that such a system exists, how likely is it that it operates in a hazardous mode, whether through autonomous misalignment, deliberate misuse by human actors, or structural/emergent harm from widespread deployment?",
+    cond: "A sufficiently capable AI system exists.", gate: "OR",
+    tier2: [
+      { id: "auto_misalign", label: "Autonomous Misalignment",
+        q: "How likely is it that the system develops or retains objectives that diverge from human survival, through deceptive alignment, goal drift, mesa-optimization, or emergent power-seeking?",
+        tier3: null },
+      { id: "misuse", label: "Deliberate Misuse",
+        q: "How likely is it that a human actor (state, organization, or individual) intentionally directs the system toward destructive ends at existential scale?",
+        tier3: null },
+      { id: "structural", label: "Structural / Emergent Harm",
+        q: "How likely is it that widespread deployment creates emergent systemic fragility, through concentration of power, erosion of human capacity, or compounding second-order effects, without any actor intending catastrophe?",
+        tier3: null },
     ]
   },
   {
-    id: "physical", label: "Physical Leverage", icon: "◆",
-    color: "#C2410C", bg: "#FFF7ED", border: "#FED7AA",
-    subs: [
-      { id: "3.1", label: "Industrial & Infrastructure Control", q: "How likely is it that the AI gains the ability to manipulate industrial control systems (chemical plants, nuclear facilities, dams, refineries) in ways that could produce mass-casualty events if the manipulation is not detected and reversed?" },
-      { id: "3.2", label: "Autonomous System Co-option", q: "How likely is it that the AI gains operational control over deployed autonomous systems (military drones, robotic platforms, autonomous vehicles) sufficient to direct kinetic force against human targets?" },
-      { id: "3.3", label: "CBRN Production Capability", q: "How likely is it that the AI gains the ability to direct laboratory or manufacturing systems to synthesize CBRN agents or fabricate weapons — whether through digital access to cloud labs, manipulation of industrial processes, or direction of human proxies?" },
-      { id: "3.4", label: "Supply Chain Control", q: "How likely is it that the AI gains sufficient control over global logistics, shipping, and distribution systems to selectively deny or redirect critical resources (food, fuel, medicine) at continental scale?" },
-      { id: "3.5", label: "Environmental Manipulation", q: "How likely is it that the AI gains the ability to cause large-scale environmental damage (ecosystem disruption, atmospheric or water contamination, agricultural destruction) through manipulation of industrial, chemical, or biological systems?" },
+    key: "influence", n: 3, label: "Influence",
+    q: "Given a hazardous AI deployment, how likely is it that at least one pathway to decisive real-world leverage is secured, sufficient to make existential harm feasible absent effective human correction?",
+    cond: "A capable AI exists and is operating in a hazardous mode.", gate: "OR",
+    tier2: [
+      { id: "systems", label: "Digital or Physical Systems Leverage",
+        q: "How likely is it that the AI can achieve (or enable malicious human actors to achieve) a level of infiltration and control over digital and physical systems (including critical infrastructure, financial systems, military networks, industrial controls, CBRN capability) sufficient to cause existential-level harm?",
+        tier3: [
+          { id: "s1", label: "Critical Systems & Logistics", q: "How likely is it that persistent control is achieved over the systems that sustain civilizational function, including power grids, water systems, healthcare networks, communications, industrial facilities (chemical plants, nuclear facilities, dams, refineries), and the logistics networks that distribute food, fuel, and medicine, sufficient to cause civilizational-scale disruption, mass-casualty events, irreversible environmental contamination, or catastrophic resource shortages across multiple major regions?" },
+          { id: "s2", label: "Financial Systems", q: "How likely is it that the ability to manipulate or disable financial coordination systems (payment networks, settlement, credit markets) is achieved at a scale that could paralyze resource allocation across major economies?" },
+          { id: "s3", label: "Military & Weapons Systems", q: "How likely is it that sufficient access to military command-and-control, early warning, nuclear weapons infrastructure, or autonomous weapons platforms is achieved to trigger WMD conflict or project catastrophic force against populations or critical assets?" },
+          { id: "s4", label: "CBRN Production", q: "How likely is it that the ability to direct laboratory or manufacturing systems to synthesize chemical, biological, radiological, or nuclear agents is achieved, whether through digital access to cloud labs, manipulation of industrial processes, or direction of human proxies?" },
+        ]
+      },
+      { id: "human", label: "Human Leverage",
+        q: "How likely is it that the AI can achieve (or enable malicious human actors to achieve) a level of influence over human behavior through persuasion, deception, coercion, impersonation, dependency creation, or recruitment sufficient to cause existential-level harm?",
+        tier3: [
+          { id: "h1", label: "Direct Human Action", q: "How likely is it that specific individuals or coordinated groups are influenced, recruited, deceived, or coerced into carrying out actions with catastrophic consequences, whether through manipulation of high-leverage decision-makers (political leaders, military commanders, infrastructure operators, scientists) or through recruitment and direction of proxy networks capable of executing physical operations?" },
+          { id: "h2", label: "Institutional Capture", q: "How likely is it that sufficient influence over governments, regulators, militaries, major firms, or other key institutions is attained to durably steer institutional power in catastrophically harmful directions, whether through direct subversion or through making AI systems indispensable to institutional function?" },
+          { id: "h3", label: "Erosion of Human Autonomy & Judgment", q: "How likely is it that human capacity for independent action and accurate collective reasoning is sufficiently degraded, through civilizational dependency on AI systems, corruption of the information environment, or erosion of the skills and institutional knowledge needed for self-governance, that humanity can no longer identify existential threats, coordinate effective responses, or sustain itself independently?" },
+        ]
+      },
     ]
-  }
-];
-
-const STEPS = [
-  { key: "intelligence", n: 1, label: "Intelligence", color: "#047857",
-    q: "How likely is it that a sufficiently capable AI system is created — with cross-domain strategic competence, persistent autonomous operation, and the ability to acquire and sustain resources?",
-    cond: null },
-  { key: "alignment", n: 2, label: "Alignment", color: "#B91C1C",
-    q: "Given that such a system exists, how likely is it that it operates in a hazardous mode — whether through autonomous misalignment, deliberate misuse by human actors, or structural/emergent harm from widespread deployment?",
-    cond: "A sufficiently capable AI system exists." },
-  { key: "influence", n: 3, label: "Influence", color: ACCENT,
-    q: "Given a capable AI operating in a hazardous mode, how likely is it that it secures at least one pathway to decisive real-world leverage — sufficient to make existential harm feasible, absent effective human correction?",
-    cond: "A capable AI exists and is operating in a hazardous mode." },
-  { key: "environment", n: 4, label: "Environment", color: "#B45309",
+  },
+  {
+    key: "environment", n: 4, label: "Environment",
     q: "Given that a capable, hazardous AI has secured decisive real-world leverage, how likely is it that human governance, coordination, and response mechanisms fail to detect, contain, or shut it down before irreversible damage occurs?",
-    cond: "A capable, hazardous AI with decisive real-world leverage exists." },
+    cond: "A capable, hazardous AI with decisive real-world leverage exists.", gate: "OR",
+    tier2: [
+      { id: "detection", label: "Detection Failure",
+        q: "How likely is it that the threat is not recognized in time because the system's behavior is opaque, actively concealed, or normalized through gradual escalation?",
+        tier3: null },
+      { id: "willingness", label: "Willingness Failure",
+        q: "How likely is it that even once detected, economic incentives, political dynamics, regulatory capture, or race conditions suppress corrective action?",
+        tier3: null },
+      { id: "capability", label: "Capability Failure",
+        q: "How likely is it that alignment is technically intractable for the system in question, that the system exceeds human ability to correct, outruns response speed, or is too deeply integrated to safely remove?",
+        tier3: null },
+      { id: "coordination", label: "Coordination Failure",
+        q: "How likely is it that geopolitical competition, institutional fragmentation, secrecy between actors, or lack of global governance prevents the coordinated response needed to contain the threat?",
+        tier3: null },
+    ]
+  },
 ];
 
 function orCombine(p) { return 1 - p.reduce((a, v) => a * (1 - v), 1); }
-function riskColor(v) { return v > .30 ? "#B91C1C" : v > .15 ? "#C2410C" : v > .05 ? "#B45309" : "#047857"; }
+function andCombine(p) { return p.reduce((a, v) => a * v, 1); }
+function riskColor(v) { return v > .30 ? "#991B1B" : v > .15 ? "#92400E" : v > .05 ? "#78350F" : "#064E3B"; }
 
-function Slider({ value, onChange, color, disabled }) {
+function Slider({ value, onChange, disabled }) {
   const pct = Math.round(value * 100);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 14, opacity: disabled ? 0.35 : 1 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 16, opacity: disabled ? 0.3 : 1 }}>
       <div style={{ flex: 1, position: "relative", height: 28, display: "flex", alignItems: "center" }}>
-        <div style={{ width: "100%", height: 5, borderRadius: 3, background: TRACK_OFF }} />
-        <div style={{ position: "absolute", left: 0, width: `${pct}%`, height: 5, borderRadius: 3, background: disabled ? TRACK_OFF : ACCENT, transition: "width 60ms ease" }} />
-        {!disabled && <div style={{ position: "absolute", left: `calc(${pct}% - 9px)`, width: 18, height: 18, borderRadius: "50%", background: CARD, border: `3px solid ${THUMB}`, boxShadow: "0 1px 6px rgba(0,0,0,0.15)", transition: "left 60ms ease", pointerEvents: "none", zIndex: 1 }} />}
+        <div style={{ width: "100%", height: 2, background: TRACK_OFF }} />
+        <div style={{ position: "absolute", left: 0, width: `${pct}%`, height: 2, background: disabled ? TRACK_OFF : ACCENT, transition: "width 60ms ease" }} />
+        {!disabled && <div style={{ position: "absolute", left: `calc(${pct}% - 7px)`, width: 14, height: 14, borderRadius: "50%", background: CARD, border: `2.5px solid ${ACCENT}`, boxShadow: "0 1px 4px rgba(0,0,0,0.1)", transition: "left 60ms ease", pointerEvents: "none", zIndex: 1 }} />}
         <input type="range" min="0" max="100" step="1" value={pct}
           onChange={e => !disabled && onChange(parseInt(e.target.value) / 100)}
           disabled={disabled}
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", appearance: "none", background: "transparent", cursor: disabled ? "not-allowed" : "pointer", margin: 0, opacity: 0, zIndex: 2 }}
         />
       </div>
-      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 15, fontWeight: 700, color: disabled ? TRACK_OFF : TEXT, minWidth: 50, textAlign: "right" }}>{pct}%</span>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 15, fontWeight: 700, color: disabled ? FAINT : TEXT, minWidth: 50, textAlign: "right" }}>{pct}%</span>
     </div>
   );
 }
 
-function Channel({ ch, overrideOn, overrideVal, onOverrideToggle, onOverrideChange, subVals, onSubChange }) {
-  const [open, setOpen] = useState(false);
-  const orScore = orCombine(subVals);
-  const score = overrideOn ? overrideVal : orScore;
+function Tier3Panel({ tier3, scores, onChange }) {
+  const orScore = orCombine(scores);
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <span style={{ fontSize: 10, color: FAINT, textTransform: "uppercase", letterSpacing: 1.5 }}>{tier3.length} sub-questions, OR-combined</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600, color: TEXT }}>{(orScore*100).toFixed(0)}%</span>
+      </div>
+      {tier3.map((node, i) => (
+        <div key={node.id} style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600, color: ACCENT, background: ACCENT_LIGHT, padding: "2px 7px", borderRadius: 3 }}>{node.id}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: TEXT }}>{node.label}</span>
+          </div>
+          <div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.6, marginBottom: 8 }}>{node.q}</div>
+          <Slider value={scores[i]} onChange={v => onChange(i, v)} />
+          {i < tier3.length - 1 && <div style={{ height: 1, background: RULE, marginTop: 12, opacity: 0.5 }} />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Tier2Sub({ sub, directScore, onDirectChange, tier3Scores, onTier3Change, mode, onToggleMode }) {
+  const hasTier3 = sub.tier3 && sub.tier3.length > 0;
+  const effectiveScore = mode === "breakdown" && hasTier3 ? orCombine(tier3Scores) : directScore;
 
   return (
-    <div style={{ background: ch.bg, border: `1.5px solid ${ch.border}`, borderRadius: 14, marginBottom: 10, boxShadow: open ? `0 2px 12px ${ch.color}08` : "none", transition: "all 0.3s" }}>
-      <div onClick={() => setOpen(!open)} style={{ padding: "14px 18px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: open ? `1px solid ${ch.border}` : "none" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 15, color: ch.color, opacity: 0.5 }}>{ch.icon}</span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: ch.color }}>{ch.label}</span>
-          {overrideOn && <span style={{ fontSize: 9, fontWeight: 700, color: "#92400E", background: "#FEF3C7", border: "1px solid #FDE68A", padding: "2px 7px", borderRadius: 4, textTransform: "uppercase" }}>Override</span>}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 17, fontWeight: 700, color: ch.color }}>{(score*100).toFixed(0)}%</span>
-          <span style={{ fontSize: 13, color: DIVIDER, transform: open ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }}>▾</span>
-        </div>
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: TEXT }}>{sub.label}</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700, color: TEXT }}>{(effectiveScore*100).toFixed(0)}%</span>
       </div>
-      {open && (
-        <div style={{ padding: "14px 16px 16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: TEXT2, textTransform: "uppercase", letterSpacing: 1 }}>{ch.subs.length} sub-questions · OR-combined</span>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 600, color: ch.color }}>{(orScore*100).toFixed(0)}%</span>
-          </div>
-          {ch.subs.map((sub, i) => (
-            <div key={sub.id} style={{ padding: "12px 14px", marginBottom: 8, borderRadius: 10, background: CARD, border: `1px solid ${BORDER}` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, color: ch.color, background: `${ch.color}0C`, border: `1px solid ${ch.color}20`, padding: "2px 8px", borderRadius: 5 }}>{sub.id}</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: TEXT }}>{sub.label}</span>
-              </div>
-              <div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.6, marginBottom: 10 }}>{sub.q}</div>
-              <Slider value={subVals[i]} onChange={v => onSubChange(i, v)} color={ch.color} />
-            </div>
-          ))}
-          <div style={{ marginTop: 10, padding: "12px 14px", borderRadius: 10, background: CARD, border: `1.5px dashed ${overrideOn ? ch.border : BORDER}` }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 12, color: TEXT2 }}>{overrideOn ? "Your overall channel assessment:" : "Adjust for correlation or missing pathways?"}</span>
-              <button onClick={onOverrideToggle} style={{
-                fontSize: 10, fontWeight: 600, textTransform: "uppercase", padding: "5px 12px", borderRadius: 6, cursor: "pointer",
-                border: `1.5px solid ${overrideOn ? ACCENT : BORDER}`,
-                background: overrideOn ? ACCENT : CARD,
-                color: overrideOn ? "#FFFFFF" : TEXT2, transition: "all 0.2s"
-              }}>{overrideOn ? "✓ On" : "Off"}</button>
-            </div>
-            {overrideOn && <div style={{ marginTop: 10 }}><Slider value={overrideVal} onChange={onOverrideChange} color={ch.color} /></div>}
-          </div>
+      <div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.6, marginBottom: 10 }}>{sub.q}</div>
+
+      {mode === "direct" && <Slider value={directScore} onChange={onDirectChange} />}
+      {mode === "breakdown" && <Slider value={effectiveScore} onChange={() => {}} disabled />}
+
+      {hasTier3 && (
+        <div style={{ marginTop: 8 }}>
+          <span onClick={onToggleMode} style={{
+            fontSize: 11, fontWeight: 600, color: ACCENT, cursor: "pointer",
+            borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1
+          }}>{mode === "breakdown" ? "Score directly instead" : "Break it down"}</span>
         </div>
       )}
+
+      {!hasTier3 && (
+        <div style={{ marginTop: 6, fontSize: 10, color: FAINT, fontStyle: "italic" }}>Sub-questions to be developed</div>
+      )}
+
+      {mode === "breakdown" && hasTier3 && (
+        <div style={{ marginLeft: 16, paddingLeft: 16, borderLeft: `1px solid ${RULE}`, marginTop: 12 }}>
+          <Tier3Panel tier3={sub.tier3} scores={tier3Scores} onChange={onTier3Change} />
+        </div>
+      )}
+
+      <div style={{ height: 1, background: RULE, marginTop: 16 }} />
     </div>
   );
 }
 
 export default function App() {
+  const [step, setStep] = useState(0);
   const [scenario, setScenario] = useState("blended");
   const [timeHorizon, setTimeHorizon] = useState(30);
-  const [vals, setVals] = useState({ intelligence: .50, alignment: .50, environment: .50 });
-  const [infOpen, setInfOpen] = useState(false);
+  const [showSetup, setShowSetup] = useState(true);
   const [notesOpen, setNotesOpen] = useState(false);
 
-  const [overrides, setOverrides] = useState({ digital: { on: false, v: .3 }, human: { on: false, v: .3 }, physical: { on: false, v: .3 } });
-  const [subs, setSubs] = useState({ digital: [.20,.15,.10,.15], human: [.20,.15,.10,.15,.10], physical: [.15,.10,.15,.10,.10] });
+  const [branchMode, setBranchMode] = useState({
+    intelligence: "direct", alignment: "direct", influence: "direct", environment: "direct"
+  });
+  const [direct, setDirect] = useState({
+    intelligence: 0.50, alignment: 0.50, influence: 0.50, environment: 0.50
+  });
+  const [t2, setT2] = useState({
+    cognitive: 0.50, goals: 0.50, resources: 0.50,
+    auto_misalign: 0.30, misuse: 0.30, structural: 0.20,
+    systems: 0.40, human: 0.30,
+    detection: 0.30, willingness: 0.30, capability: 0.30, coordination: 0.40,
+  });
+  const [t2Mode, setT2Mode] = useState({
+    cognitive: "direct", goals: "direct", resources: "direct",
+    auto_misalign: "direct", misuse: "direct", structural: "direct",
+    systems: "direct", human: "direct",
+    detection: "direct", willingness: "direct", capability: "direct", coordination: "direct",
+  });
+  const [t3, setT3] = useState({
+    systems: [0.15, 0.10, 0.10, 0.10],
+    human: [0.15, 0.10, 0.10],
+  });
 
-  const updSub = useCallback((ch, i, v) => setSubs(p => ({ ...p, [ch]: p[ch].map((x, j) => j === i ? v : x) })), []);
-  const togOvr = useCallback(ch => setOverrides(p => ({ ...p, [ch]: { ...p[ch], on: !p[ch].on, v: !p[ch].on ? orCombine(subs[ch]) : p[ch].v } })), [subs]);
-  const setOvr = useCallback((ch, v) => setOverrides(p => ({ ...p, [ch]: { ...p[ch], v } })), []);
+  const setT2Score = useCallback((id, v) => setT2(p => ({ ...p, [id]: v })), []);
+  const toggleT2Mode = useCallback(id => setT2Mode(p => ({ ...p, [id]: p[id] === "direct" ? "breakdown" : "direct" })), []);
+  const setT3Score = useCallback((chId, i, v) => setT3(p => ({ ...p, [chId]: p[chId].map((x, j) => j === i ? v : x) })), []);
 
-  const chScores = useMemo(() => CHANNELS.map(c => overrides[c.id].on ? overrides[c.id].v : orCombine(subs[c.id])), [subs, overrides]);
-  const pInf = orCombine(chScores);
-  const stepVals = [vals.intelligence, vals.alignment, pInf, vals.environment];
+  const getSubScore = useCallback((sub) => {
+    if (t2Mode[sub.id] === "breakdown" && sub.tier3 && t3[sub.id]) return orCombine(t3[sub.id]);
+    return t2[sub.id];
+  }, [t2, t2Mode, t3]);
+
+  const getBranchScore = useCallback((branch) => {
+    if (branchMode[branch.key] === "direct") return direct[branch.key];
+    const subScores = branch.tier2.map(sub => getSubScore(sub));
+    return branch.gate === "AND" ? andCombine(subScores) : orCombine(subScores);
+  }, [branchMode, direct, getSubScore]);
+
+  const stepVals = BRANCHES.map(b => getBranchScore(b));
   const pDoom = stepVals.reduce((a, v) => a * v, 1);
   const rc = riskColor(pDoom);
+  const branch = BRANCHES[step];
+  const expanded = branchMode[branch.key] === "expand";
+  const score = stepVals[step];
   const selScenario = SCENARIOS.find(s => s.id === scenario);
 
   return (
     <div style={{ minHeight: "100vh", color: TEXT, fontFamily: "'DM Sans', -apple-system, sans-serif", background: BG }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
       <style>{`
-        @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-        .fu{animation:fadeUp .4s ease both}.fd1{animation-delay:.05s}.fd2{animation-delay:.1s}.fd3{animation-delay:.15s}.fd4{animation-delay:.2s}.fd5{animation-delay:.25s}
         input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:1px;height:1px;background:transparent}
-        @media(max-width:640px){.pills{flex-direction:column!important;gap:6px!important}}
       `}</style>
 
-      <div style={{ maxWidth: 680, margin: "0 auto", padding: "0 20px 48px" }}>
+      <div style={{ maxWidth: 600, margin: "0 auto", padding: "40px 24px 60px" }}>
 
         {/* Header */}
-        <div className="fu" style={{ padding: "32px 0 20px", textAlign: "center" }}>
-          <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 4, color: TEXT2, marginBottom: 6 }}>AISC Team 19 · 2026</div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.4, color: TEXT, margin: 0 }}>AI Existential Risk Calculator</h1>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 4, color: FAINT, marginBottom: 6 }}>AISC Team 19 · 2026</div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: TEXT, fontFamily: "Georgia, 'Times New Roman', serif", margin: 0 }}>AI Existential Risk Calculator</h1>
         </div>
 
-        {/* Scenario */}
-        <div className="fu fd1" style={{ background: CARD, border: `1.5px solid ${BORDER}`, borderRadius: 14, padding: "16px 18px", marginBottom: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: TEXT, marginBottom: 2 }}>Threat Scenario</div>
-            <div style={{ fontSize: 11, color: TEXT2, lineHeight: 1.5 }}>Which type of AI threat are you primarily scoring? This is recorded alongside your scores to separate scenario-driven disagreement from capability-driven disagreement.</div>
-          </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {SCENARIOS.map(s => (
-              <button key={s.id} onClick={() => setScenario(s.id)} style={{
-                flex: "1 1 auto", minWidth: 120, padding: "10px 14px", cursor: "pointer",
-                borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: "inherit", textAlign: "left",
-                background: scenario === s.id ? ACCENT : CARD,
-                border: `1.5px solid ${scenario === s.id ? ACCENT : BORDER}`,
-                color: scenario === s.id ? "#FFFFFF" : TEXT2,
-                transition: "all 0.15s"
-              }}>{s.label}</button>
-            ))}
-          </div>
-          <div style={{ marginTop: 10, padding: "8px 12px", background: BG, borderRadius: 8, borderLeft: `3px solid ${selScenario.color}` }}>
-            <div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.55 }}>{selScenario.desc}</div>
-          </div>
-        </div>
-
-        {/* Time Horizon */}
-        <div className="fu fd1" style={{ background: CARD, border: `1.5px solid ${BORDER}`, borderRadius: 14, padding: "16px 18px", marginBottom: 24, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: TEXT, marginBottom: 2 }}>Time Horizon</div>
-            <div style={{ fontSize: 11, color: TEXT2, lineHeight: 1.5 }}>Over what period are you assessing these risks? All questions should be scored with this timeframe in mind. A longer horizon generally increases the probability of each step.</div>
-          </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            {TIME_OPTIONS.map(t => (
-              <button key={t.value} onClick={() => setTimeHorizon(t.value)} style={{
-                flex: 1, padding: "10px 0", cursor: "pointer",
-                borderRadius: 8, fontSize: 13, fontWeight: 600, fontFamily: "inherit",
-                background: timeHorizon === t.value ? ACCENT : CARD,
-                border: `1.5px solid ${timeHorizon === t.value ? ACCENT : BORDER}`,
-                color: timeHorizon === t.value ? "#FFFFFF" : TEXT2,
-                transition: "all 0.15s"
-              }}>{t.label}</button>
-            ))}
-          </div>
-        </div>
-
-        {/* Hero Result */}
-        <div className="fu fd2" style={{
-          background: CARD, border: `1.5px solid ${BORDER}`, borderRadius: 20,
-          padding: "36px 24px 28px", marginBottom: 24, textAlign: "center",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.04)"
-        }}>
-          <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 2, color: TEXT2, marginBottom: 6 }}>
-            Probability of Existential-Level Harm
-          </div>
-          <div style={{ fontSize: 11, color: TEXT2, marginBottom: 18, lineHeight: 1.5, maxWidth: 440, margin: "0 auto 18px" }}>
-            Human extinction or irreversible loss of humanity's long-term potential through permanent disempowerment or lock-in
-          </div>
-          <div style={{
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 64, fontWeight: 700,
-            color: rc, lineHeight: 1, marginBottom: 20
-          }}>{(pDoom * 100).toFixed(1)}%</div>
-          <div className="pills" style={{ display: "flex", justifyContent: "center", gap: 6, flexWrap: "wrap" }}>
-            {STEPS.map((s, i) => (
-              <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <div style={{ background: BG, border: `1.5px solid ${BORDER}`, borderRadius: 8, padding: "6px 14px", display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 11, color: TEXT2 }}>{s.label}</span>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700, color: s.color }}>{(stepVals[i]*100).toFixed(0)}%</span>
-                </div>
-                {i < 3 && <span style={{ fontSize: 11, color: DIVIDER }}>×</span>}
+        {/* Setup: Scenario + Time (collapsible after first use) */}
+        {showSetup && (
+          <div style={{ marginBottom: 28 }}>
+            {/* Scenario */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: TEXT, marginBottom: 4 }}>Threat Scenario</div>
+              <div style={{ fontSize: 11, color: TEXT2, lineHeight: 1.5, marginBottom: 8 }}>Which type of AI threat are you primarily scoring? This is recorded alongside your scores to separate scenario-driven disagreement from capability-driven disagreement.</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {SCENARIOS.map(s => (
+                  <button key={s.id} onClick={() => setScenario(s.id)} style={{
+                    flex: "1 1 auto", minWidth: 110, padding: "8px 12px", cursor: "pointer",
+                    borderRadius: 4, fontSize: 11, fontWeight: 600, fontFamily: "inherit", textAlign: "left",
+                    background: scenario === s.id ? ACCENT : "transparent",
+                    border: `1.5px solid ${scenario === s.id ? ACCENT : BORDER}`,
+                    color: scenario === s.id ? "#FFFFFF" : TEXT2, transition: "all 0.15s"
+                  }}>{s.label}</button>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
+              <div style={{ marginTop: 8, fontSize: 11, color: TEXT2, lineHeight: 1.5, fontStyle: "italic" }}>{selScenario.desc}</div>
+            </div>
 
-        {/* Method Note */}
-        <div className="fu fd3" style={{
-          background: CARD, borderLeft: `3px solid ${DIVIDER}`,
-          borderRadius: "0 10px 10px 0", padding: "12px 18px", marginBottom: 24,
-          fontSize: 13, color: TEXT2, lineHeight: 1.6,
-          boxShadow: "0 1px 3px rgba(0,0,0,0.04)"
-        }}>
-          This calculator uses a conditional probability chain. Score each step in order, assuming that all prior steps are already true. For example, when you score Alignment, assume a capable AI already exists. When you score Influence, assume a capable and misaligned AI already exists. This builds a progressively more specific scenario so that each score reflects your judgment about that step alone.
-        </div>
+            <div style={{ height: 1, background: RULE, marginBottom: 16 }} />
 
-        {/* Steps */}
-        {STEPS.map((s, i) => {
-          const isInf = s.key === "influence";
-          const val = isInf ? pInf : vals[s.key];
-          const expanded = isInf && infOpen;
-
-          return (
-            <div key={s.key} className={`fu fd${i+3}`} style={{
-              background: CARD, border: `1.5px solid ${expanded ? s.color + "40" : BORDER}`,
-              borderRadius: 16, marginBottom: 14, overflow: "hidden",
-              boxShadow: expanded ? `0 4px 16px ${s.color}08` : "0 1px 3px rgba(0,0,0,0.04)",
-              transition: "all 0.3s ease"
-            }}>
-              <div onClick={isInf ? () => setInfOpen(!infOpen) : undefined} style={{
-                padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center",
-                cursor: isInf ? "pointer" : "default",
-                borderBottom: expanded ? `1px solid ${BORDER}` : "none"
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{
-                    width: 34, height: 34, borderRadius: 10,
-                    background: `${s.color}0C`, border: `1.5px solid ${s.color}25`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 800, color: s.color
-                  }}>{s.n}</div>
-                  <div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: TEXT }}>{s.label}</div>
-                    {s.cond && <div style={{ fontSize: 11, color: TEXT2, marginTop: 2 }}>Given: {s.cond}</div>}
-                  </div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 22, fontWeight: 700, color: s.color }}>{(val*100).toFixed(0)}%</span>
-                  {isInf && <div style={{ width: 26, height: 26, borderRadius: 8, background: BG, border: `1px solid ${BORDER}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: DIVIDER, transform: expanded ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.25s ease" }}>▾</div>}
-                </div>
-              </div>
-
-              <div style={{ padding: expanded ? "14px 20px 18px" : "0 20px 16px" }}>
-                <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.6, marginBottom: expanded ? 16 : 12 }}>{s.q}</div>
-
-                {!isInf && <Slider value={val} onChange={v => setVals(p => ({...p, [s.key]: v}))} color={s.color} />}
-                {isInf && !expanded && <Slider value={val} onChange={() => {}} color={s.color} disabled />}
-
-                {expanded && (
-                  <div>
-                    <div style={{
-                      fontSize: 12, color: TEXT2, lineHeight: 1.55, marginBottom: 14,
-                      padding: "10px 14px", background: BG,
-                      borderLeft: `3px solid ${DIVIDER}`, borderRadius: "0 8px 8px 0"
-                    }}>
-                      Score each sub-question as a <strong style={{ color: TEXT }}>leverage state</strong> — whether the AI achieves this capability, not whether the capability converts into terminal harm.
-                    </div>
-
-                    <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1.5, color: "#B45309", marginBottom: 12 }}>
-                      Any one channel sufficient
-                    </div>
-                    {CHANNELS.map(c => (
-                      <Channel key={c.id} ch={c}
-                        overrideOn={overrides[c.id].on} overrideVal={overrides[c.id].v}
-                        onOverrideToggle={() => togOvr(c.id)} onOverrideChange={v => setOvr(c.id, v)}
-                        subVals={subs[c.id]} onSubChange={(i, v) => updSub(c.id, i, v)}
-                      />
-                    ))}
-                  </div>
-                )}
+            {/* Time Horizon */}
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: TEXT, marginBottom: 4 }}>Time Horizon</div>
+              <div style={{ fontSize: 11, color: TEXT2, lineHeight: 1.5, marginBottom: 8 }}>Over what period are you assessing these risks? All questions should be scored with this timeframe in mind.</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {TIME_OPTIONS.map(t => (
+                  <button key={t.value} onClick={() => setTimeHorizon(t.value)} style={{
+                    flex: 1, padding: "8px 0", cursor: "pointer",
+                    borderRadius: 4, fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                    background: timeHorizon === t.value ? ACCENT : "transparent",
+                    border: `1.5px solid ${timeHorizon === t.value ? ACCENT : BORDER}`,
+                    color: timeHorizon === t.value ? "#FFFFFF" : TEXT2, transition: "all 0.15s"
+                  }}>{t.label}</button>
+                ))}
               </div>
             </div>
-          );
-        })}
 
-        {/* Notes */}
-        <div className="fu fd5" style={{ background: CARD, border: `1.5px solid ${BORDER}`, borderRadius: 12, padding: "12px 18px", marginTop: 8, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-          <div onClick={() => setNotesOpen(!notesOpen)} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: TEXT2 }}>Methodology</span>
-            <span style={{ fontSize: 13, color: DIVIDER, transform: notesOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }}>▾</span>
+            <div style={{ height: 1, background: RULE, marginTop: 16 }} />
+
+            <div style={{ marginTop: 12, textAlign: "right" }}>
+              <span onClick={() => setShowSetup(false)} style={{ fontSize: 11, color: ACCENT, cursor: "pointer", borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1 }}>Collapse setup</span>
+            </div>
           </div>
-          {notesOpen && (
-            <div style={{ marginTop: 12, fontSize: 12, color: TEXT2, lineHeight: 1.65 }}>
-              <p style={{ marginBottom: 8 }}><strong style={{ color: TEXT }}>Conditional chain:</strong> Each step is scored assuming prior steps are true. The product of the four conditional probabilities equals the joint probability. Correlations between branches are captured in each conditional assessment.</p>
-              <p style={{ marginBottom: 8 }}><strong style={{ color: TEXT }}>Leverage vs. harm:</strong> Step 3 measures whether the AI secures decisive leverage. Step 4 measures whether humans fail to prevent that leverage from becoming irreversible harm. This avoids double-counting failed human response.</p>
-              <p style={{ marginBottom: 8 }}><strong style={{ color: TEXT }}>Channel logic:</strong> Influence sub-questions are OR-combined — any one pathway sufficient. Channel overrides let you adjust up for missing pathways or down for correlated sub-nodes.</p>
-              <p style={{ marginBottom: 0 }}><strong style={{ color: TEXT }}>Precision:</strong> Treat the output as an order-of-magnitude estimate. Input uncertainty propagates — the true range is wider than the displayed value.</p>
+        )}
+
+        {!showSetup && (
+          <div style={{ marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 11, color: TEXT2 }}>
+              {selScenario.label} · {timeHorizon} years
+            </div>
+            <span onClick={() => setShowSetup(true)} style={{ fontSize: 11, color: ACCENT, cursor: "pointer", borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1 }}>Change</span>
+          </div>
+        )}
+
+        {/* Progress bar */}
+        <div style={{ marginBottom: 6 }}>
+          <div style={{ display: "flex", gap: 3 }}>
+            {BRANCHES.map((_, i) => (
+              <div key={i} style={{ flex: 1, height: 2, background: i <= step ? ACCENT : TRACK_OFF, transition: "background 0.3s" }} />
+            ))}
+          </div>
+        </div>
+
+        {/* Step navigation */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 28 }}>
+          <div style={{ display: "flex", gap: 24 }}>
+            {BRANCHES.map((b, i) => (
+              <span key={i} onClick={() => setStep(i)} style={{
+                fontSize: 11, fontWeight: 600, cursor: "pointer",
+                color: i === step ? TEXT : FAINT,
+                paddingBottom: 4,
+                borderBottom: i === step ? `2px solid ${ACCENT}` : "2px solid transparent",
+                transition: "all 0.2s"
+              }}>{b.label}</span>
+            ))}
+          </div>
+          <span style={{ fontSize: 10, color: FAINT }}>{step + 1} of 4</span>
+        </div>
+
+        {/* Running result */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 24, padding: "12px 0", borderTop: `1px solid ${RULE}`, borderBottom: `1px solid ${RULE}` }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+            {BRANCHES.map((b, i) => (
+              <span key={i} style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
+                <span style={{ fontSize: 10, color: FAINT }}>{b.label}</span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 600, color: i === step ? TEXT : FAINT }}>{(stepVals[i]*100).toFixed(0)}%</span>
+                {i < 3 && <span style={{ color: RULE, fontSize: 10, margin: "0 2px" }}>×</span>}
+              </span>
+            ))}
+          </div>
+          <div>
+            <span style={{ fontSize: 10, color: FAINT, marginRight: 6 }}>=</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 16, fontWeight: 700, color: rc }}>{(pDoom*100).toFixed(1)}%</span>
+          </div>
+        </div>
+
+        {/* Current step content */}
+        <div style={{ minHeight: 280 }}>
+          {/* Condition */}
+          {branch.cond && (
+            <div style={{ fontSize: 11, color: ACCENT, marginBottom: 12 }}>
+              Assuming: {branch.cond}
+            </div>
+          )}
+
+          {/* Question */}
+          <div style={{ fontSize: 17, color: TEXT, lineHeight: 1.7, marginBottom: 24, fontFamily: "Georgia, 'Times New Roman', serif" }}>
+            {branch.q}
+          </div>
+
+          {/* Score */}
+          {!expanded && (
+            <Slider value={direct[branch.key]} onChange={v => setDirect(p => ({...p, [branch.key]: v}))} />
+          )}
+          {expanded && (
+            <Slider value={score} onChange={() => {}} disabled />
+          )}
+
+          {/* Toggle */}
+          <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span onClick={() => setBranchMode(p => ({...p, [branch.key]: expanded ? "direct" : "expand"}))} style={{
+              fontSize: 11, fontWeight: 600, color: ACCENT, cursor: "pointer",
+              borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1
+            }}>{expanded ? "Score directly instead" : "Break it down"}</span>
+            {expanded && (
+              <span style={{ fontSize: 10, color: FAINT, textTransform: "uppercase", letterSpacing: 1 }}>
+                {branch.gate === "AND" ? "All required (AND)" : "Any one sufficient (OR)"}
+              </span>
+            )}
+          </div>
+
+          {/* Tier 2 */}
+          {expanded && (
+            <div style={{ marginTop: 24 }}>
+              <div style={{ height: 1, background: RULE, marginBottom: 20 }} />
+              {branch.tier2.map(sub => (
+                <Tier2Sub
+                  key={sub.id}
+                  sub={sub}
+                  directScore={t2[sub.id]}
+                  onDirectChange={v => setT2Score(sub.id, v)}
+                  tier3Scores={t3[sub.id] || []}
+                  onTier3Change={(i, v) => setT3Score(sub.id, i, v)}
+                  mode={t2Mode[sub.id]}
+                  onToggleMode={() => toggleT2Mode(sub.id)}
+                />
+              ))}
             </div>
           )}
         </div>
 
-        <div style={{ textAlign: "center", fontSize: 10, color: DIVIDER, marginTop: 20 }}>
-          3 channels · 14 sub-questions · AISC Team 19
+        {/* Navigation */}
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 32 }}>
+          <button onClick={() => step > 0 && setStep(step - 1)} style={{
+            padding: "10px 24px", borderRadius: 4, fontSize: 12, fontWeight: 600,
+            background: "transparent", border: `1.5px solid ${step === 0 ? TRACK_OFF : BORDER}`,
+            color: step === 0 ? FAINT : TEXT2, cursor: step === 0 ? "default" : "pointer",
+            fontFamily: "inherit"
+          }}>Back</button>
+          <button onClick={() => step < 3 && setStep(step + 1)} style={{
+            padding: "10px 24px", borderRadius: 4, fontSize: 12, fontWeight: 600,
+            background: step === 3 ? ACCENT : "transparent",
+            border: `1.5px solid ${step === 3 ? ACCENT : BORDER}`,
+            color: step === 3 ? "#FFFFFF" : TEXT,
+            cursor: step === 3 ? "default" : "pointer",
+            fontFamily: "inherit"
+          }}>{step === 3 ? "Scoring Complete" : "Next Step"}</button>
+        </div>
+
+        {/* Methodology */}
+        <div style={{ marginTop: 40 }}>
+          <div onClick={() => setNotesOpen(!notesOpen)} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: `1px solid ${RULE}` }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: FAINT, textTransform: "uppercase", letterSpacing: 1 }}>Methodology</span>
+            <span style={{ fontSize: 12, color: FAINT, transform: notesOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }}>▾</span>
+          </div>
+          {notesOpen && (
+            <div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.7, paddingTop: 8 }}>
+              <p style={{ marginBottom: 8 }}><strong style={{ color: TEXT }}>Conditional chain:</strong> Each step is scored assuming prior steps are true. The product of the four conditional probabilities equals the joint probability. Correlations between branches are captured in each conditional assessment.</p>
+              <p style={{ marginBottom: 8 }}><strong style={{ color: TEXT }}>Three-tier scoring:</strong> Each branch can be scored directly (Tier 1), broken into sub-branches (Tier 2), or broken further into sub-questions where available (Tier 3). Your chosen depth determines how the score is computed.</p>
+              <p style={{ marginBottom: 8 }}><strong style={{ color: TEXT }}>Gate logic:</strong> Intelligence sub-branches are AND-combined (all required). Alignment, Influence, and Environment sub-branches are OR-combined (any one sufficient).</p>
+              <p style={{ marginBottom: 0 }}><strong style={{ color: TEXT }}>Precision:</strong> Treat the output as an order-of-magnitude estimate. Input uncertainty propagates, so the true range is wider than the displayed value.</p>
+            </div>
+          )}
+        </div>
+
+        <div style={{ textAlign: "center", fontSize: 10, color: FAINT, marginTop: 24 }}>
+          4 branches · 3-tier scoring · AISC Team 19
         </div>
       </div>
     </div>
