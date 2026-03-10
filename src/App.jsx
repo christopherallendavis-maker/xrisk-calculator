@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 
 // ═══ PALETTE ═══
 const BG = "#FEFDFB";
@@ -221,6 +221,71 @@ function computeCruxView(report) {
   }).sort((a, b) => b.cruxScore - a.cruxScore);
 }
 
+// ═══ WORLDVIEW ENCODING / COMPARISON ═══
+
+const SCENARIO_IDS = ["autonomous", "misuse", "structural", "blended"];
+const BM_KEYS = ["intelligence", "alignment", "influence", "environment"];
+const T2_KEYS = ["cognitive", "goals", "resources", "auto_misalign", "misuse", "structural", "systems", "human", "detection", "willingness", "capability", "coordination"];
+const T3_KEYS = ["systems", "human"];
+
+function encodeWorldview(branchMode, direct, t2, t2Mode, t3, scenario, timeHorizon) {
+  const o = {
+    bm: BM_KEYS.map(k => branchMode[k] === "direct" ? 0 : 1),
+    d: BM_KEYS.map(k => Math.round(direct[k] * 1000)),
+    t2: T2_KEYS.map(k => Math.round(t2[k] * 1000)),
+    tm: T2_KEYS.map(k => t2Mode[k] === "direct" ? 0 : 1),
+    t3: T3_KEYS.flatMap(k => t3[k].map(v => Math.round(v * 1000))),
+    s: SCENARIO_IDS.indexOf(scenario),
+    th: timeHorizon,
+  };
+  return btoa(JSON.stringify(o));
+}
+
+function decodeWorldview(str) {
+  try {
+    const o = JSON.parse(atob(str));
+    const branchMode = {}; BM_KEYS.forEach((k, i) => branchMode[k] = o.bm[i] ? "expand" : "direct");
+    const direct = {}; BM_KEYS.forEach((k, i) => direct[k] = o.d[i] / 1000);
+    const t2 = {}; T2_KEYS.forEach((k, i) => t2[k] = o.t2[i] / 1000);
+    const t2Mode = {}; T2_KEYS.forEach((k, i) => t2Mode[k] = o.tm[i] ? "breakdown" : "direct");
+    let idx = 0;
+    const t3 = {};
+    for (const k of T3_KEYS) {
+      const branch = BRANCHES.find(b => b.tier2.some(s => s.id === k));
+      const sub = branch.tier2.find(s => s.id === k);
+      const len = sub.tier3.length;
+      t3[k] = o.t3.slice(idx, idx + len).map(v => v / 1000);
+      idx += len;
+    }
+    return { branchMode, direct, t2, t2Mode, t3, scenario: SCENARIO_IDS[o.s] || "blended", timeHorizon: o.th || 30 };
+  } catch { return null; }
+}
+
+function computeComparison(wA, wB) {
+  const pDoomA = computePDoomPure(wA.branchMode, wA.direct, wA.t2, wA.t2Mode, wA.t3);
+  const pDoomB = computePDoomPure(wB.branchMode, wB.direct, wB.t2, wB.t2Mode, wB.t3);
+  const gap = pDoomA - pDoomB;
+
+  // Compare at branch level (always works regardless of mode differences)
+  const branchComps = BRANCHES.map(b => {
+    const scoreA = getBranchScorePure(b, wA.branchMode, wA.direct, wA.t2, wA.t2Mode, wA.t3);
+    const scoreB = getBranchScorePure(b, wB.branchMode, wB.direct, wB.t2, wB.t2Mode, wB.t3);
+    // Swap A's branch score into B's world: replace B's branch with A's
+    const hybridDirect = { ...wB.direct, [b.key]: scoreA };
+    const hybridBM = { ...wB.branchMode, [b.key]: "direct" };
+    const hybridPDoom = computePDoomPure(hybridBM, hybridDirect, wB.t2, wB.t2Mode, wB.t3);
+    const gapContribution = hybridPDoom - pDoomB;
+    return {
+      key: b.key, label: b.label, color: b.color,
+      scoreA, scoreB, disagreement: Math.abs(scoreA - scoreB),
+      gapContribution, gapContributionAbs: Math.abs(gapContribution),
+    };
+  });
+
+  branchComps.sort((a, b) => b.gapContributionAbs - a.gapContributionAbs);
+  return { pDoomA, pDoomB, gap, branchComps };
+}
+
 // ═══ Editable text component ═══
 function EditableText({ text, onEdit, style }) {
   return (
@@ -423,6 +488,61 @@ function CruxViewPanel({ items }) {
   );
 }
 
+function ComparisonPanel({ comparison, onClear }) {
+  if (!comparison) return null;
+  const { pDoomA, pDoomB, gap, branchComps } = comparison;
+  const rcA = riskColor(pDoomA);
+  const rcB = riskColor(pDoomB);
+  const maxGap = Math.max(...branchComps.map(c => c.gapContributionAbs), 0.001);
+
+  return (
+    <CollapsiblePanel title="Worldview Comparison" defaultOpen={true}>
+      <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.6, marginBottom: 16 }}>
+        Comparing a shared worldview with yours. For each branch, the bar shows how much adopting their view on that branch alone would shift your P(doom).
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: ACCENT_LIGHT, borderRadius: 6, marginBottom: 16 }}>
+        <div style={{ textAlign: "center", flex: 1 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: MUTED, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Shared</div>
+          <div style={{ fontFamily: MONO, fontSize: 20, fontWeight: 700, color: rcA }}>{(pDoomA * 100).toFixed(1)}%</div>
+        </div>
+        <div style={{ fontSize: 14, color: MUTED, padding: "0 12px" }}>vs</div>
+        <div style={{ textAlign: "center", flex: 1 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: MUTED, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Yours</div>
+          <div style={{ fontFamily: MONO, fontSize: 20, fontWeight: 700, color: rcB }}>{(pDoomB * 100).toFixed(1)}%</div>
+        </div>
+      </div>
+
+      {branchComps.map(comp => {
+        const barPct = (comp.gapContributionAbs / maxGap) * 100;
+        const direction = comp.gapContribution > 0 ? "higher" : "lower";
+        return (
+          <div key={comp.key} style={{ marginBottom: 14, padding: "10px 12px", background: ACCENT_LIGHT, borderRadius: 4, borderLeft: `3px solid ${comp.color}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: TEXT }}>{comp.label}</span>
+              <span style={{ fontSize: 11, color: MUTED, fontFamily: MONO }}>
+                {(comp.scoreA * 100).toFixed(0)}% vs {(comp.scoreB * 100).toFixed(0)}%
+              </span>
+            </div>
+            <div style={{ width: "100%", height: 6, background: TRACK_OFF, borderRadius: 3, marginBottom: 4 }}>
+              <div style={{ width: `${barPct}%`, height: 6, background: comp.color, borderRadius: 3, transition: "width 0.3s" }} />
+            </div>
+            {comp.disagreement > 0.005 && (
+              <div style={{ fontSize: 12, color: TEXT2 }}>
+                Adopting their view here would shift your P(doom) {(comp.gapContributionAbs * 100).toFixed(1)}pp {direction}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <div style={{ marginTop: 12, textAlign: "right" }}>
+        <span onClick={onClear} style={{ fontSize: 13, color: ACCENT, cursor: "pointer", borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1 }}>Clear comparison</span>
+      </div>
+    </CollapsiblePanel>
+  );
+}
+
 function BranchContent({ branch, score, expanded, direct, setDirect, branchMode, setBranchMode, t2, setT2Score, t2Mode, toggleT2Mode, t3, setT3Score, qEdits, editQ }) {
   return (
     <div>
@@ -558,6 +678,35 @@ export default function App() {
     () => computeCruxView(sensitivityReport),
     [sensitivityReport]
   );
+  // ─── Worldview comparison ───
+  const [compareWorldview, setCompareWorldview] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const w = params.get("w");
+    if (w) {
+      const decoded = decodeWorldview(w);
+      if (decoded) setCompareWorldview(decoded);
+    }
+  }, []);
+
+  const shareWorldview = useCallback(() => {
+    const encoded = encodeWorldview(branchMode, direct, t2, t2Mode, t3, scenario, timeHorizon);
+    const url = `${window.location.origin}${window.location.pathname}?w=${encoded}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      window.prompt("Copy this link to share your worldview:", url);
+    });
+  }, [branchMode, direct, t2, t2Mode, t3, scenario, timeHorizon]);
+
+  const comparison = useMemo(() => {
+    if (!compareWorldview) return null;
+    return computeComparison(compareWorldview, { branchMode, direct, t2, t2Mode, t3 });
+  }, [compareWorldview, branchMode, direct, t2, t2Mode, t3]);
+
   const expanded = branchMode[branch.key] === "expand";
   const score = stepVals[step];
   const selScenario = SCENARIOS.find(s => s.id === scenario);
@@ -657,6 +806,27 @@ export default function App() {
               }}>{l}</button>
             ))}
           </div>
+        </div>
+
+        {/* Compare mode banner */}
+        {compareWorldview && (
+          <div style={{ marginBottom: 16, padding: "10px 14px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 13, color: "#1E40AF", fontWeight: 600 }}>
+              Comparing with a shared worldview. Adjust your scores below.
+            </div>
+            <span onClick={() => { setCompareWorldview(null); window.history.replaceState({}, "", window.location.pathname); }} style={{ fontSize: 12, color: "#1E40AF", cursor: "pointer", borderBottom: "1px solid #1E40AF40", paddingBottom: 1 }}>Clear</span>
+          </div>
+        )}
+
+        {/* Share / Running result */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <button onClick={shareWorldview} style={{
+            padding: "6px 14px", borderRadius: 4, fontSize: 12, fontWeight: 600,
+            fontFamily: "inherit", cursor: "pointer",
+            background: copied ? "#047857" : "transparent",
+            border: `1.5px solid ${copied ? "#047857" : BORDER}`,
+            color: copied ? "#FFFFFF" : TEXT2, transition: "all 0.15s"
+          }}>{copied ? "Link copied!" : "Share worldview"}</button>
         </div>
 
         {/* Running result */}
@@ -779,6 +949,7 @@ export default function App() {
         {/* ─── ANALYSIS ─── */}
         <div style={{ marginTop: 32 }}>
           <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 2, color: MUTED, marginBottom: 16, paddingBottom: 8, borderBottom: `1px solid ${RULE}` }}>Analysis</div>
+          <ComparisonPanel comparison={comparison} onClear={() => { setCompareWorldview(null); window.history.replaceState({}, "", window.location.pathname); }} />
           <SensitivityReportPanel items={sensitivityReport} drivingItems={drivingAssumptions} />
           <CruxViewPanel items={cruxView} />
         </div>
