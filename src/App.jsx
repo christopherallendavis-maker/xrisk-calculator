@@ -1,20 +1,9 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 
-// ═══ PALETTE ═══
-const BG = "#FEFDFB";
-const CARD = "#FEFDFB";
-const TEXT = "#111827";
-const TEXT2 = "#4B5563";
-const ACCENT = "#111827";
-const ACCENT_LIGHT = "#F3F2F0";
-const TRACK_OFF = "#E5E2DC";
-const BORDER = "#E5E2DC";
-const RULE = "#D1CEC8";
-const MUTED = "#6B7280";
-
-// ═══ FONT ═══
-const SANS = "'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-const MONO = "'JetBrains Mono', 'SF Mono', 'Fira Code', monospace";
+// Palette: Ink & Paper
+const BG = "#FEFDFB", CARD = "#FEFDFB", TEXT = "#111827", TEXT2 = "#6B7280";
+const ACCENT = "#111827", ACCENT_LIGHT = "#F3F2F0", TRACK_OFF = "#E5E2DC";
+const BORDER = "#E5E2DC", RULE = "#D1CEC8", FAINT = "#9CA3AF";
 
 const SCENARIOS = [
   { id: "autonomous", label: "Autonomous Misalignment", desc: "A system that has developed its own misaligned goals and is actively pursuing them, including strategic deception, power-seeking, and resistance to correction." },
@@ -22,959 +11,364 @@ const SCENARIOS = [
   { id: "structural", label: "Structural / Emergent", desc: "Widespread deployment of AI systems creates emergent civilizational fragility, including dependency, erosion of human capacity, and systemic brittleness, without adversarial intent." },
   { id: "blended", label: "Blended", desc: "You don't believe one pathway is clearly more likely, or you want to score across all types simultaneously." },
 ];
-
-const TIME_OPTIONS = [
-  { label: "10 yrs", value: 10 },
-  { label: "20 yrs", value: 20 },
-  { label: "30 yrs", value: 30 },
-  { label: "50 yrs", value: 50 },
-];
+const TIME_OPTIONS = [{ label: "10 yrs", value: 10 }, { label: "20 yrs", value: 20 }, { label: "30 yrs", value: 30 }, { label: "50 yrs", value: 50 }];
 
 const BRANCHES = [
-  {
-    key: "intelligence", n: 1, label: "Intelligence", color: "#047857",
-    q: "How likely is it that a sufficiently capable AI system is created, with cross-domain strategic competence, persistent autonomous operation, and the ability to acquire and sustain resources?",
-    cond: null, gate: "AND",
-    tier2: [
-      { id: "cognitive", label: "Cognitive Competence",
-        q: "How likely is it that an AI system achieves cognitive performance matching or exceeding top humans in at least one strategically decisive domain?",
-        tier3: null },
-      { id: "goals", label: "Goal-Directed Behavior",
-        q: "How likely is it that an AI system exhibits stable preference ordering and behaves as if persistently pursuing goals across extended time horizons?",
-        tier3: null },
-      { id: "resources", label: "Resource Acquisition",
-        q: "How likely is it that an AI system can acquire and sustain the resources needed for continued operation, including compute, energy, financial resources, information, and strategic position?",
-        tier3: null },
-    ]
-  },
-  {
-    key: "alignment", n: 2, label: "Alignment", color: "#B91C1C",
-    q: "Given that such a system exists, how likely is it that it operates in a hazardous mode, whether through autonomous misalignment, deliberate misuse by human actors, or structural/emergent harm from widespread deployment?",
-    cond: "A sufficiently capable AI system exists.", gate: "OR",
-    tier2: [
-      { id: "auto_misalign", label: "Autonomous Misalignment",
-        q: "How likely is it that the system develops or retains objectives that diverge from human survival, through deceptive alignment, goal drift, mesa-optimization, or emergent power-seeking?",
-        tier3: null },
-      { id: "misuse", label: "Deliberate Misuse",
-        q: "How likely is it that a human actor (state, organization, or individual) intentionally directs the system toward destructive ends at existential scale?",
-        tier3: null },
-      { id: "structural", label: "Structural / Emergent Harm",
-        q: "How likely is it that widespread deployment creates emergent systemic fragility, through concentration of power, erosion of human capacity, or compounding second-order effects, without any actor intending catastrophe?",
-        tier3: null },
-    ]
-  },
-  {
-    key: "influence", n: 3, label: "Influence", color: "#7C3AED",
-    q: "Given a hazardous AI deployment, how likely is it that at least one pathway to decisive real-world leverage is secured, sufficient to make existential harm feasible absent effective human correction?",
-    cond: "A capable AI exists and is misaligned.", gate: "OR",
-    guidance: "Under misuse scenarios where the human actor already has physical access to execute, the Influence bottleneck is reduced. Score Influence based on how much additional real-world reach the AI provides beyond what the actor already has. If the actor already has everything they need except the knowledge (which is scored in Step 1), Influence may be high.",
-    tier2: [
-      { id: "systems", label: "Digital or Physical Systems Leverage",
-        q: "How likely is it that the AI can achieve (or enable malicious human actors to achieve) a level of infiltration and control over digital and physical systems (including critical infrastructure, financial systems, military networks, industrial controls, CBRN capability) sufficient to cause existential-level harm?",
-        tier3: [
-          { id: "s1", label: "Critical Systems & Logistics", q: "How likely is it that persistent control is achieved over the systems that sustain civilizational function, including power grids, water systems, healthcare networks, communications, industrial facilities (chemical plants, nuclear facilities, dams, refineries), and the logistics networks that distribute food, fuel, and medicine, sufficient to cause civilizational-scale disruption, mass-casualty events, irreversible environmental contamination, or catastrophic resource shortages across multiple major regions?" },
-          { id: "s2", label: "Financial Systems", q: "How likely is it that the ability to manipulate or disable financial coordination systems (payment networks, settlement, credit markets) is achieved at a scale that could paralyze resource allocation across major economies?" },
-          { id: "s3", label: "Military & Weapons Systems", q: "How likely is it that sufficient access to military command-and-control, early warning, nuclear weapons infrastructure, or autonomous weapons platforms is achieved to trigger WMD conflict or project catastrophic force against populations or critical assets?" },
-          { id: "s4", label: "CBRN Production", q: "How likely is it that the ability to direct laboratory or manufacturing systems to synthesize chemical, biological, radiological, or nuclear agents is achieved, whether through digital access to cloud labs, manipulation of industrial processes, or direction of human proxies?" },
-        ]
-      },
-      { id: "human", label: "Human Leverage",
-        q: "How likely is it that the AI can achieve (or enable malicious human actors to achieve) a level of influence over human behavior through persuasion, deception, coercion, impersonation, dependency creation, or recruitment sufficient to cause existential-level harm?",
-        tier3: [
-          { id: "h1", label: "Direct Human Action", q: "How likely is it that specific individuals or coordinated groups are influenced, recruited, deceived, or coerced into carrying out actions with catastrophic consequences, whether through manipulation of high-leverage decision-makers (political leaders, military commanders, infrastructure operators, scientists) or through recruitment and direction of proxy networks capable of executing physical operations?" },
-          { id: "h2", label: "Institutional Capture", q: "How likely is it that sufficient influence over governments, regulators, militaries, major firms, or other key institutions is attained to durably steer institutional power in catastrophically harmful directions, whether through direct subversion or through making AI systems indispensable to institutional function?" },
-          { id: "h3", label: "Erosion of Human Autonomy & Judgment", q: "How likely is it that human capacity for independent action and accurate collective reasoning is sufficiently degraded, through civilizational dependency on AI systems, corruption of the information environment, or erosion of the skills and institutional knowledge needed for self-governance, that humanity can no longer identify existential threats, coordinate effective responses, or sustain itself independently?" },
-        ]
-      },
-    ]
-  },
-  {
-    key: "environment", n: 4, label: "Environment", color: "#B45309",
-    q: "Given that a capable, misaligned AI has secured decisive real-world leverage, how likely is it that human governance, coordination, and response mechanisms fail to detect, contain, or shut it down before irreversible damage occurs?",
-    cond: "A capable, misaligned AI with decisive real-world leverage exists.", gate: "OR",
-    tier2: [
-      { id: "detection", label: "Detection Failure",
-        q: "How likely is it that the threat is not recognized in time because the system's behavior is opaque, actively concealed, or normalized through gradual escalation?",
-        tier3: null },
-      { id: "willingness", label: "Willingness Failure",
-        q: "How likely is it that even once detected, economic incentives, political dynamics, regulatory capture, or race conditions suppress corrective action?",
-        tier3: null },
-      { id: "capability", label: "Capability Failure",
-        q: "How likely is it that alignment is technically intractable for the system in question, that the system exceeds human ability to correct, outruns response speed, or is too deeply integrated to safely remove?",
-        tier3: null },
-      { id: "coordination", label: "Coordination Failure",
-        q: "How likely is it that geopolitical competition, institutional fragmentation, secrecy between actors, or lack of global governance prevents the coordinated response needed to contain the threat?",
-        tier3: null },
-    ]
-  },
+  { key: "intelligence", n: 1, label: "Intelligence", q: "How likely is it that a sufficiently capable AI system is created, with cross-domain strategic competence, persistent autonomous operation, and the ability to acquire and sustain resources?", cond: null, gate: "AND", tier2: [
+    { id: "cognitive", label: "Cognitive Competence", q: "How likely is it that an AI system achieves cognitive performance matching or exceeding top humans in at least one strategically decisive domain?", tier3: null },
+    { id: "goals", label: "Goal-Directed Behavior", q: "How likely is it that an AI system exhibits stable preference ordering and behaves as if persistently pursuing goals across extended time horizons?", tier3: null },
+    { id: "resources", label: "Resource Acquisition", q: "How likely is it that an AI system can acquire and sustain the resources needed for continued operation, including compute, energy, financial resources, information, and strategic position?", tier3: null },
+  ]},
+  { key: "alignment", n: 2, label: "Alignment", q: "Given that such a system exists, how likely is it that it operates in a hazardous mode, whether through autonomous misalignment, deliberate misuse by human actors, or structural/emergent harm from widespread deployment?", cond: "A sufficiently capable AI system exists.", gate: "OR", tier2: [
+    { id: "auto_misalign", label: "Autonomous Misalignment", q: "How likely is it that the system develops or retains objectives that diverge from human survival, through deceptive alignment, goal drift, mesa-optimization, or emergent power-seeking?", tier3: null },
+    { id: "misuse", label: "Deliberate Misuse", q: "How likely is it that a human actor (state, organization, or individual) intentionally directs the system toward destructive ends at existential scale?", tier3: null },
+    { id: "structural", label: "Structural / Emergent Harm", q: "How likely is it that widespread deployment creates emergent systemic fragility, through concentration of power, erosion of human capacity, or compounding second-order effects, without any actor intending catastrophe?", tier3: null },
+  ]},
+  { key: "influence", n: 3, label: "Influence", q: "Given a hazardous AI deployment, how likely is it that at least one pathway to decisive real-world leverage is secured, sufficient to make existential harm feasible absent effective human correction?", cond: "A capable AI exists and is operating in a hazardous mode.", gate: "OR", tier2: [
+    { id: "systems", label: "Systems Leverage", q: "How likely is it that the AI can achieve (or enable malicious human actors to achieve) a level of infiltration and control over digital and physical systems sufficient to cause existential-level harm?", tier3: [
+      { id: "s1", label: "Critical Systems", q: "How likely is it that persistent control is achieved over systems that sustain civilizational function?" },
+      { id: "s2", label: "Financial Systems", q: "How likely is it that the ability to manipulate or disable financial coordination systems is achieved at scale?" },
+      { id: "s3", label: "Military & Weapons", q: "How likely is it that sufficient access to military command-and-control or autonomous weapons platforms is achieved?" },
+      { id: "s4", label: "CBRN Production", q: "How likely is it that the ability to direct systems to synthesize CBRN agents is achieved?" },
+    ]},
+    { id: "human", label: "Human Leverage", q: "How likely is it that the AI can achieve (or enable malicious human actors to achieve) a level of influence over human behavior sufficient to cause existential-level harm?", tier3: [
+      { id: "h1", label: "Direct Action", q: "How likely is it that individuals or groups are influenced into carrying out catastrophic actions?" },
+      { id: "h2", label: "Institutional Capture", q: "How likely is it that sufficient influence over key institutions is attained to steer them catastrophically?" },
+      { id: "h3", label: "Erosion of Autonomy", q: "How likely is it that human capacity for independent action and reasoning is sufficiently degraded?" },
+    ]},
+  ]},
+  { key: "environment", n: 4, label: "Environment", q: "Given that a capable, hazardous AI has secured decisive real-world leverage, how likely is it that human governance, coordination, and response mechanisms fail before irreversible damage occurs?", cond: "A capable, hazardous AI with decisive real-world leverage exists.", gate: "OR", tier2: [
+    { id: "detection", label: "Detection Failure", q: "How likely is it that the threat is not recognized in time?", tier3: null },
+    { id: "willingness", label: "Willingness Failure", q: "How likely is it that corrective action is suppressed by incentives or politics?", tier3: null },
+    { id: "capability", label: "Capability Failure", q: "How likely is it that alignment is technically intractable for the system?", tier3: null },
+    { id: "coordination", label: "Coordination Failure", q: "How likely is it that global coordination fails?", tier3: null },
+  ]},
 ];
 
 function orCombine(p) { return 1 - p.reduce((a, v) => a * (1 - v), 1); }
 function andCombine(p) { return p.reduce((a, v) => a * v, 1); }
 function riskColor(v) { return v > .30 ? "#991B1B" : v > .15 ? "#92400E" : v > .05 ? "#78350F" : "#064E3B"; }
-
-// ═══ PURE ANALYSIS FUNCTIONS ═══
-
-function getSubScorePure(sub, t2, t2Mode, t3) {
-  if (t2Mode[sub.id] === "breakdown" && sub.tier3 && t3[sub.id]) return orCombine(t3[sub.id]);
-  return t2[sub.id];
-}
-
-function getBranchScorePure(branch, branchMode, direct, t2, t2Mode, t3) {
-  if (branchMode[branch.key] === "direct") return direct[branch.key];
-  const subScores = branch.tier2.map(sub => getSubScorePure(sub, t2, t2Mode, t3));
-  return branch.gate === "AND" ? andCombine(subScores) : orCombine(subScores);
-}
-
-function computePDoomPure(branchMode, direct, t2, t2Mode, t3) {
-  return BRANCHES.map(b => getBranchScorePure(b, branchMode, direct, t2, t2Mode, t3))
-    .reduce((a, v) => a * v, 1);
-}
-
-function enumerateActiveAssumptions(branchMode, t2Mode) {
-  const result = [];
-  for (const branch of BRANCHES) {
-    if (branchMode[branch.key] === "direct") {
-      result.push({ id: branch.key, type: "branch", label: branch.label, branchKey: branch.key, color: branch.color });
-    } else {
-      for (const sub of branch.tier2) {
-        if (t2Mode[sub.id] === "breakdown" && sub.tier3 && sub.tier3.length > 0) {
-          for (const t3Item of sub.tier3) {
-            result.push({ id: t3Item.id, type: "t3", parentId: sub.id, label: `${sub.label}: ${t3Item.label}`, branchKey: branch.key, color: branch.color });
-          }
-        } else {
-          result.push({ id: sub.id, type: "t2", parentId: branch.key, label: sub.label, branchKey: branch.key, color: branch.color });
-        }
-      }
-    }
-  }
-  return result;
-}
-
-function getAssumptionValue(assumption, direct, t2, t3) {
-  if (assumption.type === "branch") return direct[assumption.id];
-  if (assumption.type === "t2") return t2[assumption.id];
-  if (assumption.type === "t3") {
-    const parentT3 = t3[assumption.parentId];
-    const branch = BRANCHES.find(b => b.key === assumption.branchKey);
-    const sub = branch.tier2.find(s => s.id === assumption.parentId);
-    const idx = sub.tier3.findIndex(t => t.id === assumption.id);
-    return parentT3[idx];
-  }
-  return 0;
-}
-
-function perturbAndCompute(assumption, delta, branchMode, direct, t2, t2Mode, t3) {
-  const perturb = (d) => {
-    const dClone = { ...direct };
-    const t2Clone = { ...t2 };
-    const t3Clone = {};
-    for (const k of Object.keys(t3)) t3Clone[k] = [...t3[k]];
-
-    if (assumption.type === "branch") {
-      dClone[assumption.id] = Math.max(0, Math.min(1, direct[assumption.id] + d));
-    } else if (assumption.type === "t2") {
-      t2Clone[assumption.id] = Math.max(0, Math.min(1, t2[assumption.id] + d));
-    } else if (assumption.type === "t3") {
-      const branch = BRANCHES.find(b => b.key === assumption.branchKey);
-      const sub = branch.tier2.find(s => s.id === assumption.parentId);
-      const idx = sub.tier3.findIndex(t => t.id === assumption.id);
-      t3Clone[assumption.parentId][idx] = Math.max(0, Math.min(1, t3[assumption.parentId][idx] + d));
-    }
-    return computePDoomPure(branchMode, dClone, t2Clone, t2Mode, t3Clone);
-  };
-  return { upPDoom: perturb(delta), downPDoom: perturb(-delta) };
-}
-
-function computeSensitivityReport(branchMode, direct, t2, t2Mode, t3, delta = 0.05) {
-  const assumptions = enumerateActiveAssumptions(branchMode, t2Mode);
-  const basePDoom = computePDoomPure(branchMode, direct, t2, t2Mode, t3);
-  return assumptions.map(a => {
-    const currentValue = getAssumptionValue(a, direct, t2, t3);
-    const { upPDoom, downPDoom } = perturbAndCompute(a, delta, branchMode, direct, t2, t2Mode, t3);
-    const sensitivity = Math.abs(upPDoom - downPDoom);
-    return { ...a, currentValue, sensitivity, upPDoom, downPDoom, basePDoom };
-  }).sort((a, b) => b.sensitivity - a.sensitivity);
-}
-
-function summarizeDrivingAssumptions(report) {
-  return report.slice(0, 3).map(item => {
-    const dir = item.upPDoom > item.downPDoom ? "raises" : "lowers";
-    const delta = Math.abs(item.upPDoom - item.basePDoom) * 100;
-    return {
-      ...item,
-      direction: dir,
-      impactPp: delta,
-      summary: `Shifting ±5pp ${dir} P(doom) by ~${delta.toFixed(1)}pp`,
-    };
-  });
-}
-
-function computeCruxView(report) {
-  return report.map(item => {
-    const uncertaintyFactor = 1.0 - 2 * Math.abs(item.currentValue - 0.5);
-    const cruxScore = item.sensitivity * (0.6 + 0.4 * uncertaintyFactor);
-    const conviction = item.currentValue <= 0.2 || item.currentValue >= 0.8
-      ? "High conviction" : item.currentValue <= 0.35 || item.currentValue >= 0.65
-      ? "Moderate conviction" : "Low conviction";
-    return { ...item, cruxScore, uncertaintyFactor, conviction };
-  }).sort((a, b) => b.cruxScore - a.cruxScore);
-}
-
-// ═══ WORLDVIEW ENCODING / COMPARISON ═══
-
-const SCENARIO_IDS = ["autonomous", "misuse", "structural", "blended"];
-const BM_KEYS = ["intelligence", "alignment", "influence", "environment"];
-const T2_KEYS = ["cognitive", "goals", "resources", "auto_misalign", "misuse", "structural", "systems", "human", "detection", "willingness", "capability", "coordination"];
-const T3_KEYS = ["systems", "human"];
-
-function encodeWorldview(branchMode, direct, t2, t2Mode, t3, scenario, timeHorizon) {
-  const o = {
-    bm: BM_KEYS.map(k => branchMode[k] === "direct" ? 0 : 1),
-    d: BM_KEYS.map(k => Math.round(direct[k] * 1000)),
-    t2: T2_KEYS.map(k => Math.round(t2[k] * 1000)),
-    tm: T2_KEYS.map(k => t2Mode[k] === "direct" ? 0 : 1),
-    t3: T3_KEYS.flatMap(k => t3[k].map(v => Math.round(v * 1000))),
-    s: SCENARIO_IDS.indexOf(scenario),
-    th: timeHorizon,
-  };
-  return btoa(JSON.stringify(o));
-}
-
-function decodeWorldview(str) {
-  try {
-    const o = JSON.parse(atob(str));
-    const branchMode = {}; BM_KEYS.forEach((k, i) => branchMode[k] = o.bm[i] ? "expand" : "direct");
-    const direct = {}; BM_KEYS.forEach((k, i) => direct[k] = o.d[i] / 1000);
-    const t2 = {}; T2_KEYS.forEach((k, i) => t2[k] = o.t2[i] / 1000);
-    const t2Mode = {}; T2_KEYS.forEach((k, i) => t2Mode[k] = o.tm[i] ? "breakdown" : "direct");
-    let idx = 0;
-    const t3 = {};
-    for (const k of T3_KEYS) {
-      const branch = BRANCHES.find(b => b.tier2.some(s => s.id === k));
-      const sub = branch.tier2.find(s => s.id === k);
-      const len = sub.tier3.length;
-      t3[k] = o.t3.slice(idx, idx + len).map(v => v / 1000);
-      idx += len;
-    }
-    return { branchMode, direct, t2, t2Mode, t3, scenario: SCENARIO_IDS[o.s] || "blended", timeHorizon: o.th || 30 };
-  } catch { return null; }
-}
-
-function computeComparison(wA, wB) {
-  const pDoomA = computePDoomPure(wA.branchMode, wA.direct, wA.t2, wA.t2Mode, wA.t3);
-  const pDoomB = computePDoomPure(wB.branchMode, wB.direct, wB.t2, wB.t2Mode, wB.t3);
-  const gap = pDoomA - pDoomB;
-
-  // Compare at branch level (always works regardless of mode differences)
-  const branchComps = BRANCHES.map(b => {
-    const scoreA = getBranchScorePure(b, wA.branchMode, wA.direct, wA.t2, wA.t2Mode, wA.t3);
-    const scoreB = getBranchScorePure(b, wB.branchMode, wB.direct, wB.t2, wB.t2Mode, wB.t3);
-    // Swap A's branch score into B's world: replace B's branch with A's
-    const hybridDirect = { ...wB.direct, [b.key]: scoreA };
-    const hybridBM = { ...wB.branchMode, [b.key]: "direct" };
-    const hybridPDoom = computePDoomPure(hybridBM, hybridDirect, wB.t2, wB.t2Mode, wB.t3);
-    const gapContribution = hybridPDoom - pDoomB;
-    return {
-      key: b.key, label: b.label, color: b.color,
-      scoreA, scoreB, disagreement: Math.abs(scoreA - scoreB),
-      gapContribution, gapContributionAbs: Math.abs(gapContribution),
-    };
-  });
-
-  branchComps.sort((a, b) => b.gapContributionAbs - a.gapContributionAbs);
-  return { pDoomA, pDoomB, gap, branchComps };
-}
-
-// ═══ Editable text component ═══
-function EditableText({ text, onEdit, style }) {
-  return (
-    <div
-      contentEditable
-      suppressContentEditableWarning
-      onBlur={e => {
-        const newText = e.target.innerText.trim();
-        if (newText !== text) onEdit(newText);
-      }}
-      style={{
-        ...style,
-        outline: "none",
-        borderRadius: 3,
-        padding: "2px 0",
-        transition: "background 0.2s",
-        cursor: "text",
-      }}
-      onFocus={e => { e.target.style.background = ACCENT_LIGHT; }}
-      onMouseOver={e => { if (document.activeElement !== e.target) e.target.style.background = `${ACCENT_LIGHT}80`; }}
-      onMouseOut={e => { if (document.activeElement !== e.target) e.target.style.background = "transparent"; }}
-      onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.target.blur(); } }}
-    >
-      {text}
-    </div>
-  );
-}
+function fmt(v) { return (v * 100).toFixed(0) + "%"; }
 
 function Slider({ value, onChange, disabled }) {
   const pct = Math.round(value * 100);
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 16, opacity: disabled ? 0.3 : 1 }}>
-      <div style={{ flex: 1, position: "relative", height: 28, display: "flex", alignItems: "center" }}>
-        <div style={{ width: "100%", height: 2, background: TRACK_OFF }} />
-        <div style={{ position: "absolute", left: 0, width: `${pct}%`, height: 2, background: disabled ? TRACK_OFF : ACCENT, transition: "width 60ms ease" }} />
-        {!disabled && <div style={{ position: "absolute", left: `calc(${pct}% - 7px)`, width: 14, height: 14, borderRadius: "50%", background: CARD, border: `2.5px solid ${ACCENT}`, boxShadow: "0 1px 4px rgba(0,0,0,0.1)", transition: "left 60ms ease", pointerEvents: "none", zIndex: 1 }} />}
-        <input type="range" min="0" max="100" step="1" value={pct}
-          onChange={e => !disabled && onChange(parseInt(e.target.value) / 100)}
-          disabled={disabled}
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", appearance: "none", background: "transparent", cursor: disabled ? "not-allowed" : "pointer", margin: 0, opacity: 0, zIndex: 2 }}
-        />
-      </div>
-      <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: disabled ? MUTED : TEXT, minWidth: 50, textAlign: "right" }}>{pct}%</span>
+  return (<div style={{ display: "flex", alignItems: "center", gap: 16, opacity: disabled ? 0.3 : 1 }}>
+    <div style={{ flex: 1, position: "relative", height: 28, display: "flex", alignItems: "center" }}>
+      <div style={{ width: "100%", height: 2, background: TRACK_OFF }} />
+      <div style={{ position: "absolute", left: 0, width: `${pct}%`, height: 2, background: disabled ? TRACK_OFF : ACCENT, transition: "width 60ms ease" }} />
+      {!disabled && <div style={{ position: "absolute", left: `calc(${pct}% - 7px)`, width: 14, height: 14, borderRadius: "50%", background: CARD, border: `2.5px solid ${ACCENT}`, boxShadow: "0 1px 4px rgba(0,0,0,0.1)", transition: "left 60ms ease", pointerEvents: "none", zIndex: 1 }} />}
+      <input type="range" min="0" max="100" step="1" value={pct} onChange={e => !disabled && onChange(parseInt(e.target.value) / 100)} disabled={disabled} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", appearance: "none", background: "transparent", cursor: disabled ? "not-allowed" : "pointer", margin: 0, opacity: 0, zIndex: 2 }} />
     </div>
-  );
+    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 15, fontWeight: 700, color: disabled ? FAINT : TEXT, minWidth: 50, textAlign: "right" }}>{pct}%</span>
+  </div>);
 }
 
-function Tier3Panel({ tier3, scores, onChange, qEdits, onEditQ }) {
-  const orScore = orCombine(scores);
-  return (
-    <div style={{ marginTop: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <span style={{ fontSize: 12, color: MUTED, letterSpacing: 0.5 }}>{tier3.length} sub-questions · OR-combined</span>
-        <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 600, color: TEXT }}>{(orScore*100).toFixed(0)}%</span>
-      </div>
-      {tier3.map((node, i) => (
-        <div key={node.id} style={{ marginBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 600, color: ACCENT, background: ACCENT_LIGHT, padding: "3px 8px", borderRadius: 3 }}>{node.id}</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: TEXT }}>{node.label}</span>
-          </div>
-          <EditableText
-            text={qEdits[node.id] || node.q}
-            onEdit={v => onEditQ(node.id, v)}
-            style={{ fontSize: 13, color: TEXT2, lineHeight: 1.65, marginBottom: 10 }}
-          />
-          <Slider value={scores[i]} onChange={v => onChange(i, v)} />
-          {i < tier3.length - 1 && <div style={{ height: 1, background: RULE, marginTop: 14, opacity: 0.5 }} />}
-        </div>
-      ))}
+function Tier3Panel({ tier3, scores, onChange }) {
+  return (<div style={{ marginTop: 12 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+      <span style={{ fontSize: 10, color: FAINT, textTransform: "uppercase", letterSpacing: 1.5 }}>{tier3.length} sub-questions, OR-combined</span>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600, color: TEXT }}>{fmt(orCombine(scores))}</span>
     </div>
-  );
+    {tier3.map((node, i) => (<div key={node.id} style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600, color: ACCENT, background: ACCENT_LIGHT, padding: "2px 7px", borderRadius: 3 }}>{node.id}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: TEXT }}>{node.label}</span>
+      </div>
+      <div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.6, marginBottom: 8 }}>{node.q}</div>
+      <Slider value={scores[i]} onChange={v => onChange(i, v)} />
+      {i < tier3.length - 1 && <div style={{ height: 1, background: RULE, marginTop: 12, opacity: 0.5 }} />}
+    </div>))}
+  </div>);
 }
 
-function Tier2Sub({ sub, directScore, onDirectChange, tier3Scores, onTier3Change, mode, onToggleMode, qEdits, onEditQ }) {
+function Tier2Sub({ sub, directScore, onDirectChange, tier3Scores, onTier3Change, mode, onToggleMode }) {
   const hasTier3 = sub.tier3 && sub.tier3.length > 0;
   const effectiveScore = mode === "breakdown" && hasTier3 ? orCombine(tier3Scores) : directScore;
-
-  return (
-    <div style={{ marginBottom: 18 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-        <span style={{ fontSize: 14, fontWeight: 700, color: TEXT }}>{sub.label}</span>
-        <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: TEXT }}>{(effectiveScore*100).toFixed(0)}%</span>
-      </div>
-      <EditableText
-        text={qEdits[sub.id] || sub.q}
-        onEdit={v => onEditQ(sub.id, v)}
-        style={{ fontSize: 13, color: TEXT2, lineHeight: 1.65, marginBottom: 12 }}
-      />
-
-      {mode === "direct" && <Slider value={directScore} onChange={onDirectChange} />}
-      {mode === "breakdown" && <Slider value={effectiveScore} onChange={() => {}} disabled />}
-
-      {hasTier3 && (
-        <div style={{ marginTop: 10 }}>
-          <span onClick={onToggleMode} style={{
-            fontSize: 13, fontWeight: 600, color: ACCENT, cursor: "pointer",
-            borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1
-          }}>{mode === "breakdown" ? "Score directly instead" : "Break it down"}</span>
-        </div>
-      )}
-
-      {!hasTier3 && (
-        <div style={{ marginTop: 8, fontSize: 12, color: MUTED, fontStyle: "italic" }}>Sub-questions to be developed</div>
-      )}
-
-      {mode === "breakdown" && hasTier3 && (
-        <div style={{ marginLeft: 16, paddingLeft: 16, borderLeft: `1px solid ${RULE}`, marginTop: 14 }}>
-          <Tier3Panel tier3={sub.tier3} scores={tier3Scores} onChange={onTier3Change} qEdits={qEdits} onEditQ={onEditQ} />
-        </div>
-      )}
-
-      <div style={{ height: 1, background: RULE, marginTop: 18 }} />
+  return (<div style={{ marginBottom: 16 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+      <span style={{ fontSize: 13, fontWeight: 700, color: TEXT }}>{sub.label}</span>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700, color: TEXT }}>{fmt(effectiveScore)}</span>
     </div>
-  );
+    <div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.6, marginBottom: 10 }}>{sub.q}</div>
+    {mode === "direct" && <Slider value={directScore} onChange={onDirectChange} />}
+    {mode === "breakdown" && <Slider value={effectiveScore} onChange={() => {}} disabled />}
+    {hasTier3 && <div style={{ marginTop: 8 }}><span onClick={onToggleMode} style={{ fontSize: 11, fontWeight: 600, color: ACCENT, cursor: "pointer", borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1 }}>{mode === "breakdown" ? "Score directly instead" : "Break it down"}</span></div>}
+    {!hasTier3 && <div style={{ marginTop: 6, fontSize: 10, color: FAINT, fontStyle: "italic" }}>Sub-questions to be developed</div>}
+    {mode === "breakdown" && hasTier3 && <div style={{ marginLeft: 16, paddingLeft: 16, borderLeft: `1px solid ${RULE}`, marginTop: 12 }}><Tier3Panel tier3={sub.tier3} scores={tier3Scores} onChange={onTier3Change} /></div>}
+    <div style={{ height: 1, background: RULE, marginTop: 16 }} />
+  </div>);
 }
 
-// ═══ ANALYSIS UI COMPONENTS ═══
+function BranchExpansion({ branch, t2, setT2Score, t2Mode, toggleT2Mode, t3, setT3Score }) {
+  return (<div style={{ marginTop: 16 }}>
+    <div style={{ height: 1, background: RULE, marginBottom: 20 }} />
+    {branch.tier2.map(sub => (<Tier2Sub key={sub.id} sub={sub} directScore={t2[sub.id]} onDirectChange={v => setT2Score(sub.id, v)} tier3Scores={t3[sub.id] || []} onTier3Change={(i, v) => setT3Score(sub.id, i, v)} mode={t2Mode[sub.id]} onToggleMode={() => toggleT2Mode(sub.id)} />))}
+  </div>);
+}
 
-function CollapsiblePanel({ title, defaultOpen = false, children }) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div style={{ marginBottom: 16 }}>
-      <div onClick={() => setOpen(!open)} style={{
-        cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center",
-        padding: "10px 0", borderBottom: open ? `1px solid ${RULE}` : "none"
-      }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: TEXT }}>{title}</span>
-        <span style={{ fontSize: 14, color: MUTED, transform: open ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }}>▾</span>
-      </div>
-      {open && <div style={{ paddingTop: 12 }}>{children}</div>}
+function WizardView({ step, setStep, branches, branchMode, setBranchMode, direct, setDirect, stepVals, t2, setT2Score, t2Mode, toggleT2Mode, t3, setT3Score }) {
+  const branch = branches[step]; const expanded = branchMode[branch.key] === "expand"; const score = stepVals[step];
+  return (<div>
+    <div style={{ marginBottom: 6 }}><div style={{ display: "flex", gap: 3 }}>{branches.map((_, i) => (<div key={i} style={{ flex: 1, height: 2, background: i <= step ? ACCENT : TRACK_OFF }} />))}</div></div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 28 }}>
+      <div style={{ display: "flex", gap: 24 }}>{branches.map((b, i) => (<span key={i} onClick={() => setStep(i)} style={{ fontSize: 11, fontWeight: 600, cursor: "pointer", color: i === step ? TEXT : FAINT, paddingBottom: 4, borderBottom: i === step ? `2px solid ${ACCENT}` : "2px solid transparent" }}>{b.label}</span>))}</div>
+      <span style={{ fontSize: 10, color: FAINT }}>{step + 1} of 4</span>
     </div>
-  );
-}
-
-function SensitivityReportPanel({ items, drivingItems }) {
-  if (items.length === 0) return null;
-  const maxSens = Math.max(...items.map(i => i.sensitivity), 0.001);
-  const drivingIds = new Set(drivingItems.map(d => d.id));
-  return (
-    <CollapsiblePanel title="Sensitivity Report" defaultOpen={true}>
-      <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.6, marginBottom: 12 }}>
-        Each assumption perturbed ±5 percentage points. Bar width shows how much P(doom) changes.
+    <div style={{ minHeight: 280 }}>
+      {branch.cond && <div style={{ fontSize: 11, color: ACCENT, marginBottom: 12 }}>Assuming: {branch.cond}</div>}
+      <div style={{ fontSize: 17, color: TEXT, lineHeight: 1.7, marginBottom: 24, fontFamily: "Georgia, serif" }}>{branch.q}</div>
+      {!expanded && <Slider value={direct[branch.key]} onChange={v => setDirect(p => ({...p, [branch.key]: v}))} />}
+      {expanded && <Slider value={score} onChange={() => {}} disabled />}
+      <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between" }}>
+        <span onClick={() => setBranchMode(p => ({...p, [branch.key]: expanded ? "direct" : "expand"}))} style={{ fontSize: 11, fontWeight: 600, color: ACCENT, cursor: "pointer", borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1 }}>{expanded ? "Score directly instead" : "Break it down"}</span>
+        {expanded && <span style={{ fontSize: 10, color: FAINT, textTransform: "uppercase", letterSpacing: 1 }}>{branch.gate === "AND" ? "All required (AND)" : "Any one sufficient (OR)"}</span>}
       </div>
-      {items.map(item => {
-        const barPct = (item.sensitivity / maxSens) * 100;
-        const isDriving = drivingIds.has(item.id);
-        const drivingItem = isDriving ? drivingItems.find(d => d.id === item.id) : null;
-        return (
-          <div key={item.id} style={{
-            marginBottom: isDriving ? 14 : 10,
-            padding: isDriving ? "10px 12px" : "0",
-            background: isDriving ? ACCENT_LIGHT : "transparent",
-            borderRadius: isDriving ? 4 : 0,
-            borderLeft: isDriving ? `3px solid ${item.color}` : "none"
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 3 }}>
-              <span style={{ fontSize: isDriving ? 13 : 12, fontWeight: 600, color: TEXT, maxWidth: "60%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
-              <span style={{ fontSize: 11, color: MUTED, fontFamily: MONO }}>{(item.currentValue * 100).toFixed(0)}% · Δ{(item.sensitivity * 100).toFixed(2)}pp</span>
-            </div>
-            <div style={{ width: "100%", height: 6, background: TRACK_OFF, borderRadius: 3 }}>
-              <div style={{ width: `${barPct}%`, height: 6, background: item.color, borderRadius: 3, transition: "width 0.3s" }} />
-            </div>
-            {drivingItem && (
-              <div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.5, marginTop: 6 }}>
-                {drivingItem.summary}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </CollapsiblePanel>
-  );
-}
-
-function CruxViewPanel({ items }) {
-  if (items.length === 0) return null;
-  const topCruxes = items.slice(0, 5);
-  return (
-    <CollapsiblePanel title="Crux View" defaultOpen={false}>
-      <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.6, marginBottom: 12 }}>
-        Assumptions where sensitivity and genuine uncertainty overlap. Assumptions you hold with extreme confidence are weighted lower even if they are influential.
-      </div>
-      {topCruxes.map(item => (
-        <div key={item.id} style={{
-          marginBottom: 10, padding: "10px 12px", borderRadius: 4,
-          background: ACCENT_LIGHT,
-          border: `1px solid ${BORDER}`
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: TEXT }}>{item.label}</span>
-            <span style={{ fontSize: 11, fontWeight: 600, color: item.color, fontFamily: MONO }}>{(item.currentValue * 100).toFixed(0)}%</span>
-          </div>
-          <div style={{ fontSize: 12, color: TEXT2 }}>
-            {item.conviction} · Sensitivity Δ{(item.sensitivity * 100).toFixed(2)}pp
-          </div>
-        </div>
-      ))}
-    </CollapsiblePanel>
-  );
-}
-
-function ComparisonPanel({ comparison, onClear }) {
-  if (!comparison) return null;
-  const { pDoomA, pDoomB, gap, branchComps } = comparison;
-  const rcA = riskColor(pDoomA);
-  const rcB = riskColor(pDoomB);
-  const maxGap = Math.max(...branchComps.map(c => c.gapContributionAbs), 0.001);
-
-  return (
-    <CollapsiblePanel title="Worldview Comparison" defaultOpen={true}>
-      <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.6, marginBottom: 16 }}>
-        Comparing a shared worldview with yours. For each branch, the bar shows how much adopting their view on that branch alone would shift your P(doom).
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: ACCENT_LIGHT, borderRadius: 6, marginBottom: 16 }}>
-        <div style={{ textAlign: "center", flex: 1 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: MUTED, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Shared</div>
-          <div style={{ fontFamily: MONO, fontSize: 20, fontWeight: 700, color: rcA }}>{(pDoomA * 100).toFixed(1)}%</div>
-        </div>
-        <div style={{ fontSize: 14, color: MUTED, padding: "0 12px" }}>vs</div>
-        <div style={{ textAlign: "center", flex: 1 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: MUTED, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Yours</div>
-          <div style={{ fontFamily: MONO, fontSize: 20, fontWeight: 700, color: rcB }}>{(pDoomB * 100).toFixed(1)}%</div>
-        </div>
-      </div>
-
-      {branchComps.map(comp => {
-        const barPct = (comp.gapContributionAbs / maxGap) * 100;
-        const direction = comp.gapContribution > 0 ? "higher" : "lower";
-        return (
-          <div key={comp.key} style={{ marginBottom: 14, padding: "10px 12px", background: ACCENT_LIGHT, borderRadius: 4, borderLeft: `3px solid ${comp.color}` }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: TEXT }}>{comp.label}</span>
-              <span style={{ fontSize: 11, color: MUTED, fontFamily: MONO }}>
-                {(comp.scoreA * 100).toFixed(0)}% vs {(comp.scoreB * 100).toFixed(0)}%
-              </span>
-            </div>
-            <div style={{ width: "100%", height: 6, background: TRACK_OFF, borderRadius: 3, marginBottom: 4 }}>
-              <div style={{ width: `${barPct}%`, height: 6, background: comp.color, borderRadius: 3, transition: "width 0.3s" }} />
-            </div>
-            {comp.disagreement > 0.005 && (
-              <div style={{ fontSize: 12, color: TEXT2 }}>
-                Adopting their view here would shift your P(doom) {(comp.gapContributionAbs * 100).toFixed(1)}pp {direction}
-              </div>
-            )}
-          </div>
-        );
-      })}
-
-      <div style={{ marginTop: 12, textAlign: "right" }}>
-        <span onClick={onClear} style={{ fontSize: 13, color: ACCENT, cursor: "pointer", borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1 }}>Clear comparison</span>
-      </div>
-    </CollapsiblePanel>
-  );
-}
-
-function BranchContent({ branch, score, expanded, direct, setDirect, branchMode, setBranchMode, t2, setT2Score, t2Mode, toggleT2Mode, t3, setT3Score, qEdits, editQ }) {
-  return (
-    <div>
-      {branch.cond && (
-        <div style={{ fontSize: 13, fontWeight: 500, color: branch.color, marginBottom: 14 }}>
-          Assuming: {branch.cond}
-        </div>
-      )}
-
-      <EditableText
-        text={qEdits[branch.key] || branch.q}
-        onEdit={v => editQ(branch.key, v)}
-        style={{ fontSize: 17, fontWeight: 500, color: TEXT, lineHeight: 1.7, marginBottom: 24 }}
-      />
-
-      {branch.guidance && (
-        <div style={{
-          fontSize: 13, color: TEXT2, lineHeight: 1.65, marginBottom: 20,
-          padding: "12px 14px", background: ACCENT_LIGHT, borderLeft: `3px solid ${branch.color}`,
-          borderRadius: "0 4px 4px 0"
-        }}>
-          <strong style={{ color: TEXT, fontWeight: 600 }}>Scoring guidance:</strong> {branch.guidance}
-        </div>
-      )}
-
-      {!expanded && (
-        <Slider value={direct[branch.key]} onChange={v => setDirect(p => ({...p, [branch.key]: v}))} />
-      )}
-      {expanded && (
-        <Slider value={score} onChange={() => {}} disabled />
-      )}
-
-      <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span onClick={() => setBranchMode(p => ({...p, [branch.key]: expanded ? "direct" : "expand"}))} style={{
-          fontSize: 13, fontWeight: 600, color: ACCENT, cursor: "pointer",
-          borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1
-        }}>{expanded ? "Score directly instead" : "Break it down"}</span>
-        {expanded && (
-          <span style={{ fontSize: 12, color: MUTED, letterSpacing: 0.5 }}>
-            {branch.gate === "AND" ? "All required (AND)" : "Any one sufficient (OR)"}
-          </span>
-        )}
-      </div>
-
-      {expanded && (
-        <div style={{ marginTop: 24 }}>
-          <div style={{ height: 1, background: RULE, marginBottom: 20 }} />
-          {branch.tier2.map(sub => (
-            <Tier2Sub
-              key={sub.id}
-              sub={sub}
-              directScore={t2[sub.id]}
-              onDirectChange={v => setT2Score(sub.id, v)}
-              tier3Scores={t3[sub.id] || []}
-              onTier3Change={(i, v) => setT3Score(sub.id, i, v)}
-              mode={t2Mode[sub.id]}
-              onToggleMode={() => toggleT2Mode(sub.id)}
-              qEdits={qEdits}
-              onEditQ={editQ}
-            />
-          ))}
-        </div>
-      )}
+      {expanded && <BranchExpansion branch={branch} t2={t2} setT2Score={setT2Score} t2Mode={t2Mode} toggleT2Mode={toggleT2Mode} t3={t3} setT3Score={setT3Score} />}
     </div>
-  );
+    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 32 }}>
+      <button onClick={() => step > 0 && setStep(step - 1)} style={{ padding: "10px 24px", borderRadius: 4, fontSize: 12, fontWeight: 600, background: "transparent", border: `1.5px solid ${step === 0 ? TRACK_OFF : BORDER}`, color: step === 0 ? FAINT : TEXT2, cursor: step === 0 ? "default" : "pointer", fontFamily: "inherit" }}>Back</button>
+      <button onClick={() => step < 3 && setStep(step + 1)} style={{ padding: "10px 24px", borderRadius: 4, fontSize: 12, fontWeight: 600, background: step === 3 ? ACCENT : "transparent", border: `1.5px solid ${step === 3 ? ACCENT : BORDER}`, color: step === 3 ? "#FFF" : TEXT, cursor: step === 3 ? "default" : "pointer", fontFamily: "inherit" }}>{step === 3 ? "Scoring Complete" : "Next Step"}</button>
+    </div>
+  </div>);
 }
 
+function AccordionView({ branches, branchMode, setBranchMode, direct, setDirect, stepVals, t2, setT2Score, t2Mode, toggleT2Mode, t3, setT3Score }) {
+  const [openIdx, setOpenIdx] = useState(0);
+  return (<div>{branches.map((branch, i) => {
+    const isOpen = openIdx === i; const expanded = branchMode[branch.key] === "expand";
+    return (<div key={branch.key} style={{ marginBottom: 2 }}>
+      <div onClick={() => setOpenIdx(isOpen ? -1 : i)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", cursor: "pointer", borderBottom: `1px solid ${RULE}` }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, color: FAINT }}>{i + 1}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: TEXT }}>{branch.label}</span>
+          <span style={{ fontSize: 10, color: FAINT, textTransform: "uppercase" }}>{branch.gate}</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 15, fontWeight: 700, color: TEXT }}>{fmt(stepVals[i])}</span>
+          <span style={{ fontSize: 12, color: FAINT, transform: isOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }}>&#9662;</span>
+        </div>
+      </div>
+      {isOpen && (<div style={{ padding: "20px 0" }}>
+        {branch.cond && <div style={{ fontSize: 11, color: ACCENT, marginBottom: 12 }}>Assuming: {branch.cond}</div>}
+        <div style={{ fontSize: 15, color: TEXT, lineHeight: 1.7, marginBottom: 20, fontFamily: "Georgia, serif" }}>{branch.q}</div>
+        {!expanded && <Slider value={direct[branch.key]} onChange={v => setDirect(p => ({...p, [branch.key]: v}))} />}
+        {expanded && <Slider value={stepVals[i]} onChange={() => {}} disabled />}
+        <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between" }}>
+          <span onClick={() => setBranchMode(p => ({...p, [branch.key]: expanded ? "direct" : "expand"}))} style={{ fontSize: 11, fontWeight: 600, color: ACCENT, cursor: "pointer", borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1 }}>{expanded ? "Score directly instead" : "Break it down"}</span>
+          {expanded && <span style={{ fontSize: 10, color: FAINT, textTransform: "uppercase" }}>{branch.gate === "AND" ? "All required (AND)" : "Any one sufficient (OR)"}</span>}
+        </div>
+        {expanded && <BranchExpansion branch={branch} t2={t2} setT2Score={setT2Score} t2Mode={t2Mode} toggleT2Mode={toggleT2Mode} t3={t3} setT3Score={setT3Score} />}
+      </div>)}
+    </div>);
+  })}</div>);
+}
+
+// ═══ TREE VIEW: Actual probability tree with boxes and connector lines ═══
+
+function NodeBox({ label, score, gate, selected, onClick, depth, expanded }) {
+  const w = depth === 0 ? "100%" : depth === 1 ? 130 : 110;
+  const isRoot = depth === 0;
+  return (<div onClick={onClick} style={{
+    width: w, minWidth: w, maxWidth: depth === 0 ? "100%" : w,
+    padding: isRoot ? "14px 20px" : depth === 1 ? "10px 8px" : "8px 6px",
+    background: selected ? ACCENT_LIGHT : CARD,
+    border: `${selected ? 2 : 1.5}px solid ${selected ? ACCENT : BORDER}`,
+    borderRadius: isRoot ? 8 : 6, cursor: onClick ? "pointer" : "default",
+    textAlign: "center", transition: "all 0.15s", position: "relative",
+    boxShadow: selected ? "0 2px 8px rgba(0,0,0,0.08)" : "0 1px 3px rgba(0,0,0,0.04)",
+  }}>
+    <div style={{ fontSize: isRoot ? 10 : 9, fontWeight: 600, color: FAINT, textTransform: "uppercase", letterSpacing: isRoot ? 1.5 : 1, marginBottom: isRoot ? 6 : 3 }}>{isRoot ? "P(existential harm)" : label}</div>
+    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: isRoot ? 24 : depth === 1 ? 18 : 14, fontWeight: 700, color: isRoot ? riskColor(score) : TEXT }}>{isRoot ? (score*100).toFixed(1)+"%" : fmt(score)}</div>
+    {!isRoot && gate && <div style={{ fontSize: 8, fontWeight: 700, color: FAINT, textTransform: "uppercase", letterSpacing: 1, marginTop: 2 }}>{gate}</div>}
+    {expanded && !isRoot && <div style={{ position: "absolute", bottom: -3, left: "50%", transform: "translateX(-50%)", width: 6, height: 6, background: ACCENT, borderRadius: "50%" }} />}
+  </div>);
+}
+
+function TreeConnector({ count, gate }) {
+  if (count === 0) return null;
+  return (<div style={{ position: "relative", width: "100%" }}>
+    <div style={{ width: 0, height: 20, borderLeft: `1.5px solid ${RULE}`, margin: "0 auto" }} />
+    <div style={{ textAlign: "center", margin: "-4px 0 -4px" }}>
+      <span style={{ display: "inline-block", fontSize: 9, fontWeight: 700, color: FAINT, textTransform: "uppercase", letterSpacing: 1.5, background: BG, padding: "0 8px", position: "relative", zIndex: 1 }}>{gate}</span>
+    </div>
+    {count > 1 && <div style={{ position: "relative", height: 0, margin: "0 auto", left: `${50/count}%`, width: `${100 - 100/count}%`, borderTop: `1.5px solid ${RULE}` }} />}
+    <div style={{ display: "flex" }}>{Array.from({ length: count }).map((_, i) => (<div key={i} style={{ flex: 1, display: "flex", justifyContent: "center" }}><div style={{ width: 0, height: 18, borderLeft: `1.5px solid ${RULE}` }} /></div>))}</div>
+  </div>);
+}
+
+function TreeView({ branches, branchMode, setBranchMode, direct, setDirect, stepVals, pDoom, t2, setT2Score, t2Mode, toggleT2Mode, t3, setT3Score }) {
+  const [selected, setSelected] = useState(null);
+  const [expandedBranch, setExpandedBranch] = useState(null);
+  const [expandedSub, setExpandedSub] = useState(null);
+
+  const selectBranch = (i) => { setSelected({ type: "branch", branchIdx: i }); setExpandedBranch(expandedBranch === i ? null : i); setExpandedSub(null); };
+  const selectSub = (bi, subId) => { setSelected({ type: "sub", branchIdx: bi, subId }); setExpandedSub(expandedSub === subId ? null : subId); };
+  const selectT3 = (bi, subId, t3Idx) => { setSelected({ type: "t3", branchIdx: bi, subId, t3Idx }); };
+
+  const detailContent = useMemo(() => {
+    if (!selected) return null;
+    const { type, branchIdx, subId, t3Idx } = selected;
+    const branch = branches[branchIdx];
+    if (type === "branch") return { label: branch.label, q: branch.q, cond: branch.cond, gate: branch.gate, sliderVal: direct[branch.key], onSlider: v => setDirect(p => ({...p, [branch.key]: v})), branchKey: branch.key, isBranch: true };
+    const sub = branch.tier2.find(s => s.id === subId);
+    if (!sub) return null;
+    if (type === "sub") { const hasTier3 = sub.tier3 && sub.tier3.length > 0; return { label: sub.label, q: sub.q, sliderVal: t2[sub.id], onSlider: v => setT2Score(sub.id, v), subId: sub.id, hasTier3, isBranch: false }; }
+    if (type === "t3" && sub.tier3 && sub.tier3[t3Idx]) { const node = sub.tier3[t3Idx]; return { label: node.label, q: node.q, sliderVal: t3[sub.id][t3Idx], onSlider: v => setT3Score(sub.id, t3Idx, v), isBranch: false, isLeaf: true }; }
+    return null;
+  }, [selected, branches, direct, t2, t3, setDirect, setT2Score, setT3Score]);
+
+  return (<div style={{ overflowX: "auto" }}>
+    {/* Root */}
+    <div style={{ display: "flex", justifyContent: "center", marginBottom: 0 }}><NodeBox label="Root" score={pDoom} depth={0} /></div>
+    <TreeConnector count={4} gate={<span style={{ fontFamily: "'JetBrains Mono', monospace" }}>&times; &times; &times;</span>} />
+
+    {/* Branch boxes */}
+    <div style={{ display: "flex", gap: 0 }}>
+      {branches.map((branch, i) => (<div key={branch.key} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <NodeBox label={branch.label} score={stepVals[i]} gate={branch.gate} depth={1} selected={(selected && selected.type === "branch" && selected.branchIdx === i) || expandedBranch === i} expanded={expandedBranch === i} onClick={() => selectBranch(i)} />
+      </div>))}
+    </div>
+
+    {/* Expanded branch subtree */}
+    {expandedBranch !== null && (() => {
+      const bi = expandedBranch, branch = branches[bi];
+      const isExpanded = branchMode[branch.key] === "expand", subs = branch.tier2;
+      return (<div style={{ marginTop: 4 }}>
+        <div style={{ display: "flex" }}>{branches.map((_, i) => (<div key={i} style={{ flex: 1, display: "flex", justifyContent: "center" }}>{i === bi && isExpanded && <div style={{ width: 0, height: 16, borderLeft: `1.5px solid ${RULE}` }} />}</div>))}</div>
+        {isExpanded && (<div style={{ display: "flex", justifyContent: "center" }}>
+          <div style={{ width: "100%", maxWidth: Math.max(subs.length * 140, 300) }}>
+            <div style={{ textAlign: "center", marginBottom: -2 }}><span style={{ fontSize: 9, fontWeight: 700, color: FAINT, textTransform: "uppercase", letterSpacing: 1.5, background: BG, padding: "0 8px" }}>{branch.gate}</span></div>
+            {subs.length > 1 && <div style={{ position: "relative", height: 0, margin: "0 auto", left: `${50/subs.length}%`, width: `${100 - 100/subs.length}%`, borderTop: `1.5px solid ${RULE}` }} />}
+            <div style={{ display: "flex", gap: 0 }}>
+              {subs.map((sub) => {
+                const hasTier3 = sub.tier3 && sub.tier3.length > 0;
+                const subScore = (t2Mode[sub.id] === "breakdown" && hasTier3 && t3[sub.id]) ? orCombine(t3[sub.id]) : t2[sub.id];
+                return (<div key={sub.id} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                  <div style={{ width: 0, height: 14, borderLeft: `1.5px solid ${RULE}` }} />
+                  <NodeBox label={sub.label} score={subScore} depth={2} selected={(selected && selected.subId === sub.id) || expandedSub === sub.id} expanded={expandedSub === sub.id} onClick={() => selectSub(bi, sub.id)} />
+                </div>);
+              })}
+            </div>
+            {/* Tier 3 */}
+            {expandedSub && (() => {
+              const sub = subs.find(s => s.id === expandedSub);
+              if (!sub || !sub.tier3 || t2Mode[sub.id] !== "breakdown") return null;
+              const t3Nodes = sub.tier3;
+              return (<div style={{ marginTop: 4 }}>
+                <div style={{ textAlign: "center", marginBottom: -2 }}><span style={{ fontSize: 8, fontWeight: 700, color: FAINT, textTransform: "uppercase", background: BG, padding: "0 6px" }}>OR</span></div>
+                {t3Nodes.length > 1 && <div style={{ position: "relative", height: 0, margin: "0 auto", left: `${50/t3Nodes.length}%`, width: `${100 - 100/t3Nodes.length}%`, borderTop: `1.5px solid ${RULE}` }} />}
+                <div style={{ display: "flex", gap: 0 }}>
+                  {t3Nodes.map((node, ni) => {
+                    const isT3Sel = selected && selected.type === "t3" && selected.t3Idx === ni && selected.subId === sub.id;
+                    return (<div key={node.id} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                      <div style={{ width: 0, height: 12, borderLeft: `1.5px solid ${RULE}` }} />
+                      <div onClick={() => selectT3(expandedBranch, sub.id, ni)} style={{ width: 90, padding: "6px 4px", textAlign: "center", borderRadius: 4, border: `${isT3Sel ? 2 : 1}px solid ${isT3Sel ? ACCENT : BORDER}`, background: isT3Sel ? ACCENT_LIGHT : CARD, cursor: "pointer", transition: "all 0.15s" }}>
+                        <div style={{ fontSize: 8, fontWeight: 600, color: FAINT, textTransform: "uppercase", marginBottom: 2, lineHeight: 1.2 }}>{node.label}</div>
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 700, color: TEXT }}>{fmt(t3[sub.id][ni])}</div>
+                      </div>
+                    </div>);
+                  })}
+                </div>
+              </div>);
+            })()}
+          </div>
+        </div>)}
+        {!isExpanded && <div style={{ textAlign: "center", marginTop: 8 }}><span onClick={() => setBranchMode(p => ({...p, [branch.key]: "expand"}))} style={{ fontSize: 11, fontWeight: 600, color: ACCENT, cursor: "pointer", borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1 }}>Expand sub-branches</span></div>}
+      </div>);
+    })()}
+
+    {/* Detail panel */}
+    {detailContent && (<div style={{ marginTop: 24, padding: "16px 20px", borderRadius: 6, border: `1.5px solid ${BORDER}`, background: CARD }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: TEXT }}>{detailContent.label}</span>
+        {detailContent.gate && <span style={{ fontSize: 9, fontWeight: 700, color: FAINT, textTransform: "uppercase" }}>{detailContent.gate}</span>}
+      </div>
+      {detailContent.cond && <div style={{ fontSize: 11, color: ACCENT, marginBottom: 8 }}>Assuming: {detailContent.cond}</div>}
+      <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.7, marginBottom: 16, fontFamily: "Georgia, serif" }}>{detailContent.q}</div>
+      <Slider value={detailContent.sliderVal} onChange={detailContent.onSlider} />
+      {detailContent.isBranch && <div style={{ marginTop: 12 }}><span onClick={() => { const bk = branches[selected.branchIdx].key; setBranchMode(p => ({...p, [bk]: branchMode[bk] === "expand" ? "direct" : "expand"})); }} style={{ fontSize: 11, fontWeight: 600, color: ACCENT, cursor: "pointer", borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1 }}>{branchMode[branches[selected.branchIdx].key] === "expand" ? "Score directly instead" : "Break it down"}</span></div>}
+      {detailContent.hasTier3 && !detailContent.isLeaf && <div style={{ marginTop: 12 }}><span onClick={() => toggleT2Mode(detailContent.subId)} style={{ fontSize: 11, fontWeight: 600, color: ACCENT, cursor: "pointer", borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1 }}>{t2Mode[detailContent.subId] === "breakdown" ? "Score directly instead" : "Break it down"}</span></div>}
+    </div>)}
+  </div>);
+}
+
+// ═══ MAIN APP ═══
 export default function App() {
+  const [viewMode, setViewMode] = useState("wizard");
   const [step, setStep] = useState(0);
-  const [layout, setLayout] = useState("wizard");
-  const [accordionOpen, setAccordionOpen] = useState({ intelligence: true, alignment: false, influence: false, environment: false });
   const [scenario, setScenario] = useState("blended");
   const [timeHorizon, setTimeHorizon] = useState(30);
   const [showSetup, setShowSetup] = useState(true);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [branchMode, setBranchMode] = useState({ intelligence: "direct", alignment: "direct", influence: "direct", environment: "direct" });
+  const [direct, setDirect] = useState({ intelligence: 0.50, alignment: 0.50, influence: 0.50, environment: 0.50 });
+  const [t2, setT2] = useState({ cognitive: 0.50, goals: 0.50, resources: 0.50, auto_misalign: 0.30, misuse: 0.30, structural: 0.20, systems: 0.40, human: 0.30, detection: 0.30, willingness: 0.30, capability: 0.30, coordination: 0.40 });
+  const [t2Mode, setT2Mode] = useState({ cognitive: "direct", goals: "direct", resources: "direct", auto_misalign: "direct", misuse: "direct", structural: "direct", systems: "direct", human: "direct", detection: "direct", willingness: "direct", capability: "direct", coordination: "direct" });
+  const [t3, setT3] = useState({ systems: [0.15, 0.10, 0.10, 0.10], human: [0.15, 0.10, 0.10] });
 
-  // Editable question text overrides
-  const [qEdits, setQEdits] = useState({});
-  const editQ = useCallback((id, text) => setQEdits(p => ({ ...p, [id]: text })), []);
-
-  const [branchMode, setBranchMode] = useState({
-    intelligence: "direct", alignment: "direct", influence: "direct", environment: "direct"
-  });
-  const [direct, setDirect] = useState({
-    intelligence: 0.50, alignment: 0.50, influence: 0.50, environment: 0.50
-  });
-  const [t2, setT2] = useState({
-    cognitive: 0.50, goals: 0.50, resources: 0.50,
-    auto_misalign: 0.30, misuse: 0.30, structural: 0.20,
-    systems: 0.40, human: 0.30,
-    detection: 0.30, willingness: 0.30, capability: 0.30, coordination: 0.40,
-  });
-  const [t2Mode, setT2Mode] = useState({
-    cognitive: "direct", goals: "direct", resources: "direct",
-    auto_misalign: "direct", misuse: "direct", structural: "direct",
-    systems: "direct", human: "direct",
-    detection: "direct", willingness: "direct", capability: "direct", coordination: "direct",
-  });
-  const [t3, setT3] = useState({
-    systems: [0.15, 0.10, 0.10, 0.10],
-    human: [0.15, 0.10, 0.10],
-  });
-
-  const setT2Score = useCallback((id, v) => setT2(p => ({ ...p, [id]: v })), []);
-  const toggleT2Mode = useCallback(id => setT2Mode(p => ({ ...p, [id]: p[id] === "direct" ? "breakdown" : "direct" })), []);
-  const setT3Score = useCallback((chId, i, v) => setT3(p => ({ ...p, [chId]: p[chId].map((x, j) => j === i ? v : x) })), []);
-
-  const getSubScore = useCallback((sub) => {
-    if (t2Mode[sub.id] === "breakdown" && sub.tier3 && t3[sub.id]) return orCombine(t3[sub.id]);
-    return t2[sub.id];
-  }, [t2, t2Mode, t3]);
-
-  const getBranchScore = useCallback((branch) => {
-    if (branchMode[branch.key] === "direct") return direct[branch.key];
-    const subScores = branch.tier2.map(sub => getSubScore(sub));
-    return branch.gate === "AND" ? andCombine(subScores) : orCombine(subScores);
-  }, [branchMode, direct, getSubScore]);
+  const setT2Score = useCallback((id, v) => setT2(p => ({...p, [id]: v})), []);
+  const toggleT2Mode = useCallback(id => setT2Mode(p => ({...p, [id]: p[id] === "direct" ? "breakdown" : "direct"})), []);
+  const setT3Score = useCallback((chId, i, v) => setT3(p => ({...p, [chId]: p[chId].map((x, j) => j === i ? v : x)})), []);
+  const getSubScore = useCallback((sub) => { if (t2Mode[sub.id] === "breakdown" && sub.tier3 && t3[sub.id]) return orCombine(t3[sub.id]); return t2[sub.id]; }, [t2, t2Mode, t3]);
+  const getBranchScore = useCallback((branch) => { if (branchMode[branch.key] === "direct") return direct[branch.key]; const ss = branch.tier2.map(sub => getSubScore(sub)); return branch.gate === "AND" ? andCombine(ss) : orCombine(ss); }, [branchMode, direct, getSubScore]);
 
   const stepVals = BRANCHES.map(b => getBranchScore(b));
   const pDoom = stepVals.reduce((a, v) => a * v, 1);
   const rc = riskColor(pDoom);
-  const branch = BRANCHES[step];
-
-  const sensitivityReport = useMemo(
-    () => computeSensitivityReport(branchMode, direct, t2, t2Mode, t3),
-    [branchMode, direct, t2, t2Mode, t3]
-  );
-  const drivingAssumptions = useMemo(
-    () => summarizeDrivingAssumptions(sensitivityReport),
-    [sensitivityReport]
-  );
-  const cruxView = useMemo(
-    () => computeCruxView(sensitivityReport),
-    [sensitivityReport]
-  );
-  // ─── Worldview comparison ───
-  const [compareWorldview, setCompareWorldview] = useState(null);
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const w = params.get("w");
-    if (w) {
-      const decoded = decodeWorldview(w);
-      if (decoded) setCompareWorldview(decoded);
-    }
-  }, []);
-
-  const shareWorldview = useCallback(() => {
-    const encoded = encodeWorldview(branchMode, direct, t2, t2Mode, t3, scenario, timeHorizon);
-    const url = `${window.location.origin}${window.location.pathname}?w=${encoded}`;
-    navigator.clipboard.writeText(url).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }).catch(() => {
-      window.prompt("Copy this link to share your worldview:", url);
-    });
-  }, [branchMode, direct, t2, t2Mode, t3, scenario, timeHorizon]);
-
-  const comparison = useMemo(() => {
-    if (!compareWorldview) return null;
-    return computeComparison(compareWorldview, { branchMode, direct, t2, t2Mode, t3 });
-  }, [compareWorldview, branchMode, direct, t2, t2Mode, t3]);
-
-  const expanded = branchMode[branch.key] === "expand";
-  const score = stepVals[step];
   const selScenario = SCENARIOS.find(s => s.id === scenario);
+  const VIEW_MODES = [{ id: "wizard", label: "Wizard" }, { id: "accordion", label: "Accordion" }, { id: "tree", label: "Tree" }];
 
-  return (
-    <div style={{ minHeight: "100vh", color: TEXT, fontFamily: SANS, background: BG }}>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
-      <style>{`
-        input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:1px;height:1px;background:transparent}
-        [contenteditable]:focus{background:${ACCENT_LIGHT}!important}
-      `}</style>
-
-      <div style={{ maxWidth: 620, margin: "0 auto", padding: "40px 24px 60px" }}>
-
-        {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 3, color: MUTED, marginBottom: 8 }}>AISC Team 19 · 2026</div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: TEXT, margin: 0 }}>AI Existential Risk Calculator</h1>
-          <div style={{ fontSize: 14, color: TEXT2, lineHeight: 1.65, maxWidth: 500, margin: "14px auto 0" }}>
-            This tool estimates the probability of existential-level harm to humanity from artificial intelligence by decomposing the question into four conditional steps that scorers evaluate in sequence.
-          </div>
-          <div style={{ fontSize: 12, color: MUTED, lineHeight: 1.55, maxWidth: 480, margin: "10px auto 0", fontStyle: "italic" }}>
-            This calculator represents one general decomposition of AI catastrophic risk, intended to be broad enough to cover many worldviews, but not exhaustive of all possible framings.
-          </div>
-        </div>
-
-        {/* ─── ASSUMPTIONS ─── */}
-        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 2, color: MUTED, marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${RULE}` }}>Assumptions</div>
-        <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.6, marginBottom: 16 }}>These frame your scoring but do not enter the calculation. The final probability is determined solely by the four steps below.</div>
-        {showSetup && (
-          <div style={{ marginBottom: 32 }}>
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: TEXT, marginBottom: 4 }}>Threat Scenario</div>
-              <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.6, marginBottom: 10 }}>Which type of AI threat are you primarily scoring? This separates scenario-driven disagreement from capability-driven disagreement.</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
-                {SCENARIOS.map(s => (
-                  <button key={s.id} onClick={() => setScenario(s.id)} style={{
-                    padding: "9px 6px", cursor: "pointer",
-                    borderRadius: 4, fontSize: 12, fontWeight: 600, fontFamily: "inherit", textAlign: "center",
-                    background: scenario === s.id ? ACCENT : "transparent",
-                    border: `1.5px solid ${scenario === s.id ? ACCENT : BORDER}`,
-                    color: scenario === s.id ? "#FFFFFF" : TEXT2, transition: "all 0.15s"
-                  }}>{s.label}</button>
-                ))}
-              </div>
-              <div style={{ marginTop: 10, fontSize: 13, color: TEXT2, lineHeight: 1.6, fontStyle: "italic" }}>{selScenario.desc}</div>
-            </div>
-
-            <div style={{ height: 1, background: RULE, marginBottom: 16 }} />
-
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: TEXT, marginBottom: 4 }}>Time Horizon</div>
-              <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.6, marginBottom: 10 }}>Over what period are you assessing these risks? All questions should be scored with this timeframe in mind.</div>
-              <div style={{ display: "flex", gap: 6 }}>
-                {TIME_OPTIONS.map(t => (
-                  <button key={t.value} onClick={() => setTimeHorizon(t.value)} style={{
-                    flex: 1, padding: "9px 0", cursor: "pointer",
-                    borderRadius: 4, fontSize: 13, fontWeight: 600, fontFamily: "inherit",
-                    background: timeHorizon === t.value ? ACCENT : "transparent",
-                    border: `1.5px solid ${timeHorizon === t.value ? ACCENT : BORDER}`,
-                    color: timeHorizon === t.value ? "#FFFFFF" : TEXT2, transition: "all 0.15s"
-                  }}>{t.label}</button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ height: 1, background: RULE, marginTop: 16 }} />
-            <div style={{ marginTop: 12, textAlign: "right" }}>
-              <span onClick={() => setShowSetup(false)} style={{ fontSize: 13, color: ACCENT, cursor: "pointer", borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1 }}>Collapse</span>
-            </div>
-          </div>
-        )}
-
-        {!showSetup && (
-          <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 13, color: TEXT2 }}>
-              {selScenario.label} · {timeHorizon} years
-            </div>
-            <span onClick={() => setShowSetup(true)} style={{ fontSize: 13, color: ACCENT, cursor: "pointer", borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1 }}>Change</span>
-          </div>
-        )}
-
-        {/* ─── CALCULATOR ─── */}
-        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 2, color: MUTED, marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${RULE}` }}>Calculator</div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-          <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.65, flex: 1, marginRight: 16 }}>
-            Conditional probability chain. Score each step assuming all prior steps are true.
-          </div>
-          <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-            {["wizard", "accordion"].map(l => (
-              <button key={l} onClick={() => setLayout(l)} style={{
-                padding: "6px 14px", borderRadius: 4, fontSize: 12, fontWeight: 600,
-                fontFamily: "inherit", cursor: "pointer", textTransform: "capitalize",
-                background: layout === l ? ACCENT : "transparent",
-                border: `1.5px solid ${layout === l ? ACCENT : BORDER}`,
-                color: layout === l ? "#FFFFFF" : TEXT2, transition: "all 0.15s"
-              }}>{l}</button>
-            ))}
-          </div>
-        </div>
-
-        {/* Compare mode banner */}
-        {compareWorldview && (
-          <div style={{ marginBottom: 16, padding: "10px 14px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 13, color: "#1E40AF", fontWeight: 600 }}>
-              Comparing with a shared worldview. Adjust your scores below.
-            </div>
-            <span onClick={() => { setCompareWorldview(null); window.history.replaceState({}, "", window.location.pathname); }} style={{ fontSize: 12, color: "#1E40AF", cursor: "pointer", borderBottom: "1px solid #1E40AF40", paddingBottom: 1 }}>Clear</span>
-          </div>
-        )}
-
-        {/* Share / Running result */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <button onClick={shareWorldview} style={{
-            padding: "6px 14px", borderRadius: 4, fontSize: 12, fontWeight: 600,
-            fontFamily: "inherit", cursor: "pointer",
-            background: copied ? "#047857" : "transparent",
-            border: `1.5px solid ${copied ? "#047857" : BORDER}`,
-            color: copied ? "#FFFFFF" : TEXT2, transition: "all 0.15s"
-          }}>{copied ? "Link copied!" : "Share worldview"}</button>
-        </div>
-
-        {/* Running result */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 28, padding: "14px 0", borderTop: `1px solid ${RULE}`, borderBottom: `1px solid ${RULE}` }}>
-          <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
-            {BRANCHES.map((b, i) => (
-              <span key={i} style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                <span style={{ fontSize: 12, fontWeight: 500, color: b.color }}>{b.label}</span>
-                <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, color: b.color }}>{(stepVals[i]*100).toFixed(0)}%</span>
-                {i < 3 && <span style={{ color: RULE, fontSize: 12, margin: "0 2px" }}>×</span>}
-              </span>
-            ))}
-          </div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-            <span style={{ fontSize: 12, color: MUTED }}>=</span>
-            <span style={{ fontFamily: MONO, fontSize: 18, fontWeight: 700, color: rc }}>{(pDoom*100).toFixed(1)}%</span>
-          </div>
-        </div>
-
-        {/* ─── WIZARD LAYOUT ─── */}
-        {layout === "wizard" && (
-          <>
-            {/* Progress bar */}
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ display: "flex", gap: 3 }}>
-                {BRANCHES.map((b, i) => (
-                  <div key={i} style={{ flex: 1, height: 3, borderRadius: 1.5, background: i <= step ? b.color : TRACK_OFF, transition: "background 0.3s" }} />
-                ))}
-              </div>
-            </div>
-
-            {/* Step tabs */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 24 }}>
-              <div style={{ display: "flex", gap: 20 }}>
-                {BRANCHES.map((b, i) => (
-                  <span key={i} onClick={() => setStep(i)} style={{
-                    fontSize: 13, fontWeight: 600, cursor: "pointer",
-                    color: i === step ? b.color : MUTED,
-                    paddingBottom: 4,
-                    borderBottom: i === step ? `2px solid ${b.color}` : "2px solid transparent",
-                    transition: "all 0.2s"
-                  }}>{b.label}</span>
-                ))}
-              </div>
-              <span style={{ fontSize: 12, color: MUTED }}>{step + 1} / 4</span>
-            </div>
-
-            <div style={{ minHeight: 280 }}>
-              <BranchContent
-                branch={branch} score={score} expanded={expanded}
-                direct={direct} setDirect={setDirect} branchMode={branchMode} setBranchMode={setBranchMode}
-                t2={t2} setT2Score={setT2Score} t2Mode={t2Mode} toggleT2Mode={toggleT2Mode}
-                t3={t3} setT3Score={setT3Score} qEdits={qEdits} editQ={editQ}
-              />
-            </div>
-
-            {/* Navigation */}
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 32 }}>
-              <button onClick={() => step > 0 && setStep(step - 1)} style={{
-                padding: "10px 24px", borderRadius: 4, fontSize: 13, fontWeight: 600,
-                background: "transparent", border: `1.5px solid ${step === 0 ? TRACK_OFF : BORDER}`,
-                color: step === 0 ? MUTED : TEXT2, cursor: step === 0 ? "default" : "pointer",
-                fontFamily: "inherit"
-              }}>Back</button>
-              <button onClick={() => step < 3 && setStep(step + 1)} style={{
-                padding: "10px 24px", borderRadius: 4, fontSize: 13, fontWeight: 600,
-                background: step === 3 ? ACCENT : "transparent",
-                border: `1.5px solid ${step === 3 ? ACCENT : BORDER}`,
-                color: step === 3 ? "#FFFFFF" : TEXT,
-                cursor: step === 3 ? "default" : "pointer",
-                fontFamily: "inherit"
-              }}>{step === 3 ? "Scoring Complete" : "Next Step"}</button>
-            </div>
-          </>
-        )}
-
-        {/* ─── ACCORDION LAYOUT ─── */}
-        {layout === "accordion" && (
-          <div>
-            {BRANCHES.map((b, i) => {
-              const isOpen = accordionOpen[b.key];
-              const bScore = stepVals[i];
-              const bExpanded = branchMode[b.key] === "expand";
-              return (
-                <div key={b.key} style={{ marginBottom: 12 }}>
-                  <div
-                    onClick={() => setAccordionOpen(p => ({ ...p, [b.key]: !p[b.key] }))}
-                    style={{
-                      display: "flex", justifyContent: "space-between", alignItems: "center",
-                      padding: "12px 14px", cursor: "pointer", borderRadius: isOpen ? "6px 6px 0 0" : 6,
-                      background: ACCENT_LIGHT, borderLeft: `3px solid ${b.color}`,
-                      transition: "border-radius 0.2s"
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-                      <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: b.color }}>{b.n}</span>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: TEXT }}>{b.label}</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: b.color }}>{(bScore*100).toFixed(0)}%</span>
-                      <span style={{ fontSize: 14, color: MUTED, transform: isOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }}>▾</span>
-                    </div>
-                  </div>
-                  {isOpen && (
-                    <div style={{ padding: "16px 14px", border: `1px solid ${BORDER}`, borderTop: "none", borderRadius: "0 0 6px 6px" }}>
-                      <BranchContent
-                        branch={b} score={bScore} expanded={bExpanded}
-                        direct={direct} setDirect={setDirect} branchMode={branchMode} setBranchMode={setBranchMode}
-                        t2={t2} setT2Score={setT2Score} t2Mode={t2Mode} toggleT2Mode={toggleT2Mode}
-                        t3={t3} setT3Score={setT3Score} qEdits={qEdits} editQ={editQ}
-                      />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* ─── ANALYSIS ─── */}
-        <div style={{ marginTop: 32 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 2, color: MUTED, marginBottom: 16, paddingBottom: 8, borderBottom: `1px solid ${RULE}` }}>Analysis</div>
-          <ComparisonPanel comparison={comparison} onClear={() => { setCompareWorldview(null); window.history.replaceState({}, "", window.location.pathname); }} />
-          <SensitivityReportPanel items={sensitivityReport} drivingItems={drivingAssumptions} />
-          <CruxViewPanel items={cruxView} />
-        </div>
-
-        {/* Methodology */}
-        <div style={{ marginTop: 40 }}>
-          <div onClick={() => setNotesOpen(!notesOpen)} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderTop: `1px solid ${RULE}` }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: MUTED, letterSpacing: 0.5 }}>Methodology</span>
-            <span style={{ fontSize: 14, color: MUTED, transform: notesOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }}>▾</span>
-          </div>
-          {notesOpen && (
-            <div style={{ fontSize: 13, color: TEXT2, lineHeight: 1.7, paddingTop: 10 }}>
-              <p style={{ marginBottom: 10 }}><strong style={{ color: TEXT }}>Conditional decomposition.</strong> This follows the structure of Carlsmith (2022) and related threat models: factor P(existential catastrophe from AI) into a product of conditional probabilities, where each step assumes all prior steps obtain. This avoids double-counting and isolates genuine disagreement to the step where it occurs.</p>
-              <p style={{ marginBottom: 10 }}><strong style={{ color: TEXT }}>Three-tier scoring.</strong> Each branch can be scored directly (Tier 1), broken into sub-branches (Tier 2), or decomposed further into sub-questions where available (Tier 3). The scoring depth you choose determines how the branch probability is computed.</p>
-              <p style={{ marginBottom: 10 }}><strong style={{ color: TEXT }}>Gate logic.</strong> Intelligence sub-branches are AND-combined (all conditions required). Alignment, Influence, and Environment sub-branches are OR-combined (any single pathway sufficient).</p>
-              <p style={{ marginBottom: 10 }}><strong style={{ color: TEXT }}>Editable questions.</strong> All question text is editable. Click any question to revise the framing for your own threat model. Edits persist for the session.</p>
-              <p style={{ marginBottom: 0 }}><strong style={{ color: TEXT }}>Precision.</strong> Treat the output as an order-of-magnitude estimate. Uncertainty in each input propagates multiplicatively, so the true credible interval is substantially wider than the point estimate displayed.</p>
-            </div>
-          )}
-        </div>
-
-        <div style={{ textAlign: "center", fontSize: 12, color: MUTED, marginTop: 24, lineHeight: 1.6 }}>
-          4 branches · 3-tier scoring · AISC Team 19
-        </div>
+  return (<div style={{ minHeight: "100vh", color: TEXT, fontFamily: "'DM Sans', -apple-system, sans-serif", background: BG }}>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>{`input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:1px;height:1px;background:transparent}`}</style>
+    <div style={{ maxWidth: 640, margin: "0 auto", padding: "40px 24px 60px" }}>
+      <div style={{ textAlign: "center", marginBottom: 24 }}>
+        <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 4, color: FAINT, marginBottom: 6 }}>AISC Team 19 &middot; 2026</div>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: TEXT, fontFamily: "Georgia, serif", margin: 0 }}>AI Existential Risk Calculator</h1>
       </div>
+      <div style={{ display: "flex", justifyContent: "center", gap: 4, marginBottom: 24 }}>
+        {VIEW_MODES.map(m => (<button key={m.id} onClick={() => setViewMode(m.id)} style={{ padding: "6px 18px", borderRadius: 3, fontSize: 11, fontWeight: 600, fontFamily: "inherit", background: viewMode === m.id ? ACCENT : "transparent", border: `1.5px solid ${viewMode === m.id ? ACCENT : BORDER}`, color: viewMode === m.id ? "#FFF" : TEXT2, cursor: "pointer" }}>{m.label}</button>))}
+      </div>
+      {showSetup && (<div style={{ marginBottom: 28 }}>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: TEXT, marginBottom: 4 }}>Threat Scenario</div>
+          <div style={{ fontSize: 11, color: TEXT2, lineHeight: 1.5, marginBottom: 8 }}>Which type of AI threat are you primarily scoring?</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{SCENARIOS.map(s => (<button key={s.id} onClick={() => setScenario(s.id)} style={{ flex: "1 1 auto", minWidth: 110, padding: "8px 12px", cursor: "pointer", borderRadius: 4, fontSize: 11, fontWeight: 600, fontFamily: "inherit", textAlign: "left", background: scenario === s.id ? ACCENT : "transparent", border: `1.5px solid ${scenario === s.id ? ACCENT : BORDER}`, color: scenario === s.id ? "#FFF" : TEXT2 }}>{s.label}</button>))}</div>
+          <div style={{ marginTop: 8, fontSize: 11, color: TEXT2, lineHeight: 1.5, fontStyle: "italic" }}>{selScenario.desc}</div>
+        </div>
+        <div style={{ height: 1, background: RULE, marginBottom: 16 }} />
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: TEXT, marginBottom: 4 }}>Time Horizon</div>
+          <div style={{ fontSize: 11, color: TEXT2, lineHeight: 1.5, marginBottom: 8 }}>Over what period are you assessing these risks?</div>
+          <div style={{ display: "flex", gap: 6 }}>{TIME_OPTIONS.map(t => (<button key={t.value} onClick={() => setTimeHorizon(t.value)} style={{ flex: 1, padding: "8px 0", cursor: "pointer", borderRadius: 4, fontSize: 12, fontWeight: 600, fontFamily: "inherit", background: timeHorizon === t.value ? ACCENT : "transparent", border: `1.5px solid ${timeHorizon === t.value ? ACCENT : BORDER}`, color: timeHorizon === t.value ? "#FFF" : TEXT2 }}>{t.label}</button>))}</div>
+        </div>
+        <div style={{ height: 1, background: RULE, marginTop: 16 }} />
+        <div style={{ marginTop: 12, textAlign: "right" }}><span onClick={() => setShowSetup(false)} style={{ fontSize: 11, color: ACCENT, cursor: "pointer", borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1 }}>Collapse setup</span></div>
+      </div>)}
+      {!showSetup && (<div style={{ marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: 11, color: TEXT2 }}>{selScenario.label} &middot; {timeHorizon} years</div>
+        <span onClick={() => setShowSetup(true)} style={{ fontSize: 11, color: ACCENT, cursor: "pointer", borderBottom: `1px solid ${ACCENT}40`, paddingBottom: 1 }}>Change</span>
+      </div>)}
+      {viewMode !== "tree" && (<div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 24, padding: "12px 0", borderTop: `1px solid ${RULE}`, borderBottom: `1px solid ${RULE}` }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>{BRANCHES.map((b, i) => (<span key={i} style={{ display: "flex", alignItems: "baseline", gap: 3 }}><span style={{ fontSize: 10, color: FAINT }}>{b.label}</span><span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 600, color: TEXT }}>{fmt(stepVals[i])}</span>{i < 3 && <span style={{ color: RULE, fontSize: 10, margin: "0 2px" }}>&times;</span>}</span>))}</div>
+        <div><span style={{ fontSize: 10, color: FAINT, marginRight: 6 }}>=</span><span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 16, fontWeight: 700, color: rc }}>{(pDoom*100).toFixed(1)}%</span></div>
+      </div>)}
+      {viewMode === "wizard" && <WizardView step={step} setStep={setStep} branches={BRANCHES} branchMode={branchMode} setBranchMode={setBranchMode} direct={direct} setDirect={setDirect} stepVals={stepVals} t2={t2} setT2Score={setT2Score} t2Mode={t2Mode} toggleT2Mode={toggleT2Mode} t3={t3} setT3Score={setT3Score} />}
+      {viewMode === "accordion" && <AccordionView branches={BRANCHES} branchMode={branchMode} setBranchMode={setBranchMode} direct={direct} setDirect={setDirect} stepVals={stepVals} t2={t2} setT2Score={setT2Score} t2Mode={t2Mode} toggleT2Mode={toggleT2Mode} t3={t3} setT3Score={setT3Score} />}
+      {viewMode === "tree" && <TreeView branches={BRANCHES} branchMode={branchMode} setBranchMode={setBranchMode} direct={direct} setDirect={setDirect} stepVals={stepVals} pDoom={pDoom} t2={t2} setT2Score={setT2Score} t2Mode={t2Mode} toggleT2Mode={toggleT2Mode} t3={t3} setT3Score={setT3Score} />}
+      <div style={{ marginTop: 40 }}>
+        <div onClick={() => setNotesOpen(!notesOpen)} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: `1px solid ${RULE}` }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: FAINT, textTransform: "uppercase", letterSpacing: 1 }}>Methodology</span>
+          <span style={{ fontSize: 12, color: FAINT, transform: notesOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }}>&#9662;</span>
+        </div>
+        {notesOpen && (<div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.7, paddingTop: 8 }}>
+          <p style={{ marginBottom: 8 }}><strong style={{ color: TEXT }}>Conditional chain:</strong> Each step is scored assuming prior steps are true. The product of the four conditional probabilities equals the joint probability.</p>
+          <p style={{ marginBottom: 8 }}><strong style={{ color: TEXT }}>Three-tier scoring:</strong> Each branch can be scored directly (Tier 1), broken into sub-branches (Tier 2), or broken further into sub-questions where available (Tier 3).</p>
+          <p style={{ marginBottom: 8 }}><strong style={{ color: TEXT }}>Gate logic:</strong> Intelligence sub-branches are AND-combined. Alignment, Influence, and Environment are OR-combined.</p>
+          <p style={{ marginBottom: 0 }}><strong style={{ color: TEXT }}>Precision:</strong> Treat the output as an order-of-magnitude estimate.</p>
+        </div>)}
+      </div>
+      <div style={{ textAlign: "center", fontSize: 10, color: FAINT, marginTop: 24 }}>4 branches &middot; 3-tier scoring &middot; 3 views &middot; AISC Team 19</div>
     </div>
-  );
+  </div>);
 }

@@ -1,9 +1,24 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git init)",
-      "Bash(git add -A)",
-      "Bash(git commit -m \"Initial commit\")"
+      "Bash(git *)",
+      "Bash(npm *)",
+      "Bash(npx vercel *)",
+      "mcp__Claude_Preview__preview_start",
+      "mcp__Claude_Preview__preview_screenshot",
+      "mcp__Claude_Preview__preview_snapshot",
+      "mcp__Claude_Preview__preview_logs",
+      "mcp__Claude_Preview__preview_console_logs",
+      "mcp__Claude_Preview__preview_eval",
+      "mcp__Claude_Preview__preview_inspect",
+      "mcp__Claude_Preview__preview_click",
+      "mcp__Claude_Preview__preview_network",
+      "mcp__Desktop_Commander__read_file",
+      "mcp__Desktop_Commander__get_file_info",
+      "WebSearch",
+      "mcp__Word__By_Anthropic___create_document",
+      "mcp__Word__By_Anthropic___insert_text",
+      "mcp__Word__By_Anthropic___save_document"
     ]
   }
 }
